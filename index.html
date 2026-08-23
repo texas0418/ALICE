@@ -1,0 +1,2121 @@
+<meta charset="utf-8">
+<title>ALICE</title>
+<style>
+:root{
+  --cy:#7ce2ff; --cy2:#57c6e4; --dim:#3aa3c6; --hot:#d6f6ff; 
+  --acc:#ffb347; --wht:#e9fcff;
+  --g1:rgba(124,226,255,.85); --g2:rgba(124,226,255,.42); --g3:rgba(124,226,255,.18);
+}
+html[data-pal="red"]{
+  --cy:#ff6a4a; --cy2:#d4553c; --dim:#8f3221; --hot:#ffd9cd;
+  --acc:#ffd166; --wht:#fff0ea;
+  --g1:rgba(255,106,74,.85); --g2:rgba(255,106,74,.42); --g3:rgba(255,106,74,.18);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;width:100%;background:#000;overflow:hidden;cursor:none}
+body{font-family:ui-sans-serif,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  color:var(--cy);-webkit-font-smoothing:antialiased;letter-spacing:.16em}
+/* Night dimming and burn-in drift both act on #stage, so every element inherits
+   them without per-component work. */
+/* Drift rides the standalone `translate` property, NOT `transform` — the fit-to-
+   window scale lives on `transform`, and transitioning that made every resize and
+   the initial load crawl for 20 seconds. Separate properties, separate speeds. */
+#stage{position:fixed;left:50%;top:50%;width:1600px;height:1000px;
+  filter:brightness(var(--dim-level,1)) saturate(var(--sat-level,1));
+  translate:var(--drift-x,0px) var(--drift-y,0px);
+  transform:translate(-50%,-50%) scale(var(--s,1));transform-origin:50% 50%;
+  transition:filter 12s linear, translate 20s linear}
+
+/* ambient */
+#grid{position:absolute;inset:0;opacity:.13;
+  background:repeating-linear-gradient(0deg,transparent 0 54px,var(--g2) 54px 55px),
+             repeating-linear-gradient(90deg,transparent 0 54px,var(--g2) 54px 55px);
+  -webkit-mask-image:radial-gradient(ellipse at center,#000 12%,transparent 74%);
+  mask-image:radial-gradient(ellipse at center,#000 12%,transparent 74%)}
+#vig{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 72%,rgba(0,0,0,.42) 100%)}
+#scan{position:absolute;inset:0;pointer-events:none;opacity:.09;
+  background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.4) 2px 4px)}
+#sweep{position:absolute;left:0;right:0;height:220px;pointer-events:none;opacity:0;
+  background:linear-gradient(180deg,transparent,var(--g2) 44%,var(--g1) 50%,var(--g2) 56%,transparent);
+  filter:blur(1px)}
+@keyframes sweepdn{0%{opacity:.85;transform:translateY(-260px)}100%{opacity:0;transform:translateY(100vh)}}
+.sweeping{animation:sweepdn 1.15s cubic-bezier(.3,.7,.3,1)}
+
+/* chamfered frame */
+.frame{position:relative;padding:12px 16px 13px}
+.frame>.fb{position:absolute;inset:0;background:var(--hot);opacity:1;
+  filter:drop-shadow(0 0 3px var(--g1)) drop-shadow(0 0 10px var(--g2)) drop-shadow(0 0 24px var(--g3));
+  clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.frame>.fi{position:absolute;inset:1.4px;background:#000;
+  clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.frame>.c{position:relative}
+.frame.flip>.fb,.frame.flip>.fi{
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+
+/* panels */
+.panel{position:absolute;font-size:12px;line-height:1.95;opacity:0;transition:opacity .6s}
+.panel.on{opacity:1}
+.p-tl{top:52px;left:54px}.p-tr{top:48px;right:54px;text-align:right}
+.p-bl{bottom:52px;left:54px}.p-br{bottom:52px;right:54px;text-align:right}
+.hdr{color:var(--hot);font-size:10px;letter-spacing:.36em;margin-bottom:9px;opacity:1;
+  text-shadow:0 0 4px var(--g1),0 0 13px var(--g2),0 0 30px var(--g3);
+  border-bottom:1px solid var(--g1);padding-bottom:6px;box-shadow:0 1px 9px -2px var(--g2)}
+.row{display:flex;justify-content:space-between;gap:26px;min-width:244px}
+.row .k{color:var(--cy);opacity:1;text-shadow:0 0 4px var(--g2),0 0 12px var(--g3)}
+.row .v{color:var(--hot);text-shadow:0 0 3px var(--hot),0 0 10px var(--g1),0 0 26px var(--g2),0 0 52px var(--g3)}
+.v.a{color:var(--acc);text-shadow:0 0 7px rgba(255,179,71,.5)}
+
+#clock{font-size:52px;letter-spacing:.02em;color:var(--wht);line-height:1;
+  text-shadow:0 0 5px var(--hot),0 0 18px var(--g1),0 0 44px var(--g2),0 0 80px var(--g3);
+  font-variant-numeric:tabular-nums}
+#clock small{font-size:17px;opacity:.55;margin-left:7px;letter-spacing:.1em}
+#date{font-size:11.5px;color:var(--cy);margin-top:10px;
+  text-shadow:0 0 4px var(--g1),0 0 13px var(--g2),0 0 30px var(--g3)}
+#loc{font-size:10.5px;color:var(--cy2);opacity:.95;
+  text-shadow:0 0 4px var(--g2),0 0 14px var(--g3);margin-top:5px}
+
+.meter{margin-bottom:10px;min-width:244px}
+.meter .lab{display:flex;justify-content:space-between;font-size:10px;color:var(--cy);opacity:1;
+  margin-bottom:5px;text-shadow:0 0 4px var(--g2),0 0 12px var(--g3)}
+.track{height:8px;display:flex;gap:2px}
+.seg{flex:1;background:var(--g3);transition:background .3s,box-shadow .3s}
+.seg.lit{background:var(--hot);box-shadow:0 0 4px var(--g1),0 0 11px var(--g2),0 0 22px var(--g3)}
+
+/* rotated edge labels */
+/* Rolodex selector. The spin is not decoration: it fills the processing beat with
+   the system visibly FINDING the thing, and it shows what was understood a moment
+   before the card lands — so a misheard command is obvious while it is still moving. */
+#rolo{position:absolute;left:60px;top:50%;transform:translateY(-50%);
+  width:176px;height:340px;overflow:hidden;pointer-events:none;opacity:0}
+/* Static fades instead of a mask: a gradient mask on a moving child re-composites
+   every frame, which is what made the reel stutter. Opaque black does the same job. */
+#rolo::before,#rolo::after{content:'';position:absolute;left:0;right:0;height:84px;
+  z-index:2;pointer-events:none}
+#rolo::before{top:0;background:linear-gradient(180deg,#000,rgba(0,0,0,0))}
+#rolo::after{bottom:0;background:linear-gradient(0deg,#000,rgba(0,0,0,0))}
+#rolo.on{opacity:1}
+#roloList{position:absolute;left:0;right:0;top:0;will-change:transform}
+.roItem{height:34px;display:flex;align-items:center;gap:9px;padding-left:14px;
+  font-size:11px;letter-spacing:.26em;color:var(--cy2);opacity:.42;
+  white-space:nowrap;transition:color .25s,opacity .25s}
+.roItem.soon{opacity:.2}
+.roItem.sel{color:var(--hot);opacity:1;text-shadow:0 0 4px var(--g1),0 0 14px var(--g2),0 0 32px var(--g3)}
+.roItem .rd{width:4px;height:4px;flex:none;border-radius:50%;background:var(--cy2);opacity:.5}
+.roItem.sel .rd{background:var(--hot);opacity:1;box-shadow:0 0 5px var(--g1),0 0 12px var(--g2)}
+#roloBand{position:absolute;left:0;right:0;top:50%;height:34px;transform:translateY(-50%);
+  pointer-events:none;border-top:1px solid var(--g3);border-bottom:1px solid var(--g3)}
+#roloBand::before,#roloBand::after{content:'';position:absolute;top:0;bottom:0;width:9px;
+  border:1px solid var(--hot);filter:drop-shadow(0 0 4px var(--g1))}
+#roloBand::before{left:0;border-right:0}
+#roloBand::after{right:0;border-left:0}
+#roloList.spinning .roItem{opacity:.3;transition:none}
+#roloList.spinning .roItem.sel{opacity:.3;text-shadow:none}
+.edge{position:absolute;font-size:10px;letter-spacing:.5em;color:var(--cy);opacity:.95;
+  text-shadow:0 0 4px var(--g2),0 0 14px var(--g3)}
+.edge.l{left:16px;top:50%;transform:translateY(-50%) rotate(-90deg);transform-origin:center}
+.edge.r{right:16px;top:50%;transform:translateY(-50%) rotate(90deg);transform-origin:center}
+
+/* corner brackets */
+.brk{position:absolute;width:64px;height:64px;border:1px solid var(--hot);opacity:1;
+  filter:drop-shadow(0 0 3px var(--g1)) drop-shadow(0 0 10px var(--g2)) drop-shadow(0 0 22px var(--g3))}
+.brk.tl{top:22px;left:22px;border-right:0;border-bottom:0}
+.brk.tr{top:22px;right:22px;border-left:0;border-bottom:0}
+.brk.bl{bottom:22px;left:22px;border-right:0;border-top:0}
+.brk.br{bottom:22px;right:22px;border-left:0;border-top:0}
+
+/* core */
+#atmo{position:absolute;top:50%;left:50%;transform:translate(-50%,-52%);pointer-events:none;
+  width:min(96vh,980px);height:min(96vh,980px);filter:blur(46px);
+  background:radial-gradient(circle,var(--g3) 0%,rgba(0,0,0,0) 62%)}
+#core{position:absolute;top:50%;left:50%;transform:translate(-50%,-52%);
+  width:800px;height:800px}
+#core svg{width:100%;height:100%;overflow:visible}
+.spin{transform-box:view-box;transform-origin:400px 400px;animation:rot linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@keyframes rotr{to{transform:rotate(-360deg)}}
+
+/* Width spans the whole design canvas so a card wider than the ring assembly still
+   centres: an over-sized grid item pins to the start edge and overflows right, which
+   silently shifted the traffic card 140px off-centre. Height stays at 800 so cards
+   remain vertically aligned with the core, which sits 2% high. */
+#focusWrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-52%);
+  width:1600px;height:800px;display:grid;place-items:center;pointer-events:none}
+#focusCard.wide{width:760px}
+#focusCard.huge{width:1080px;padding:24px 28px 26px}
+.sunwrap{margin:14px 0 4px}
+.sunsvg{width:100%;height:210px;display:block}
+.sunbig{font-size:52px;line-height:1;color:var(--hot);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 7px var(--hot),0 0 22px var(--g1),0 0 56px var(--g2),0 0 100px var(--g3)}
+.sunbig span{font-size:15px;opacity:.55;margin-left:6px;letter-spacing:.2em}
+.sunlab{font-size:10.5px;color:var(--cy);letter-spacing:.24em;margin-top:9px;
+  text-shadow:0 0 9px var(--g3)}
+.mmain{display:flex;gap:26px;margin:18px 0 6px}
+.mstat{width:180px;flex:none}
+.mbig{font-size:66px;line-height:.9;color:var(--hot);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 7px var(--hot),0 0 22px var(--g1),0 0 56px var(--g2),0 0 100px var(--g3)}
+.mbig span{font-size:14px;opacity:.55;margin-left:6px;letter-spacing:.2em}
+.macct{display:flex;justify-content:space-between;font-size:10.5px;color:var(--cy);
+  margin-top:12px;letter-spacing:.14em;text-shadow:0 0 9px var(--g3);padding-bottom:6px;
+  border-bottom:1px solid var(--g3)}
+.macct b{color:var(--hot);font-weight:400;text-shadow:0 0 4px var(--g1),0 0 13px var(--g3)}
+.macct.err b{color:var(--acc);font-size:9px}
+.mlist{flex:1;min-width:0}
+.mrow{display:flex;gap:14px;align-items:baseline;padding:9px 0;
+  border-bottom:1px solid var(--g3);opacity:.55}
+.mrow.new{opacity:1}
+.mrow .mdot{width:6px;height:6px;flex:none;border-radius:50%;background:transparent;
+  border:1px solid var(--g2)}
+.mrow.new .mdot{background:var(--hot);border-color:var(--hot);
+  box-shadow:0 0 5px var(--g1),0 0 13px var(--g2)}
+.mrow .mfrom{width:150px;flex:none;font-size:11px;color:var(--hot);letter-spacing:.1em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 9px var(--g3)}
+.mrow .msubj{flex:1;min-width:0;font-size:11px;color:var(--cy);letter-spacing:.06em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .mtime{width:56px;flex:none;text-align:right;font-size:9.5px;color:var(--cy2);opacity:.8}
+.tick{width:62px;flex:none;font-size:12.5px;color:var(--hot);letter-spacing:.1em;
+  text-shadow:0 0 4px var(--g1),0 0 13px var(--g3)}
+.px{width:70px;flex:none;font-size:11px;color:var(--cy);text-align:right;
+  font-variant-numeric:tabular-nums}
+.pbar{flex:1;min-width:60px;height:5px;background:var(--g3);position:relative;margin:0 4px}
+.pbar i{position:absolute;left:0;top:0;bottom:0;background:var(--hot);
+  box-shadow:0 0 4px var(--g1),0 0 11px var(--g2)}
+.pnum{width:46px;flex:none;font-size:11px;color:var(--hot);text-align:right;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 8px var(--g2)}
+.st{width:64px;flex:none;font-size:9.5px;letter-spacing:.14em;text-align:center;
+  padding:2px 0;border:1px solid var(--line)}
+.st.pass{color:var(--cy2);border-color:var(--g3)}
+.st.fail{color:#ff6a4a;border-color:rgba(255,106,74,.5);
+  text-shadow:0 0 6px rgba(255,106,74,.6)}
+.st.running{color:var(--acc);border-color:rgba(255,179,71,.5)}
+.st.none,.st.other,.st.error{color:var(--cy2);opacity:.6}
+.st{width:auto;min-width:74px;padding:2px 6px}
+.st.live{color:var(--cy2);border-color:var(--g3);opacity:.75}
+.st.hot{color:var(--acc);border-color:rgba(255,179,71,.55);
+  text-shadow:0 0 6px rgba(255,179,71,.55)}
+.st.bad{color:#ff6a4a;border-color:rgba(255,106,74,.5);
+  text-shadow:0 0 6px rgba(255,106,74,.6)}
+.mbig.bad{color:#ff6a4a;text-shadow:0 0 7px #ff6a4a,0 0 22px rgba(255,106,74,.6),0 0 56px rgba(255,106,74,.3)}
+.stale{color:var(--acc)!important;text-shadow:0 0 6px rgba(255,179,71,.5)}
+.mempty{font-size:12px;color:var(--cy);opacity:.7;padding:26px 0;letter-spacing:.18em}
+.mrow.late .mdot{background:#ff6a4a;border-color:#ff6a4a;
+  box-shadow:0 0 5px rgba(255,106,74,.8),0 0 14px rgba(255,106,74,.4)}
+.mrow.late .mwhen{color:#ff6a4a!important;text-shadow:0 0 8px rgba(255,106,74,.5)}
+.mrow .mwhen{width:92px;flex:none;font-size:10px;color:var(--cy2);opacity:.9;letter-spacing:.08em}
+.mrow .mlist{width:132px;flex:none;font-size:9.5px;color:var(--cy2);opacity:.7;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tmain{display:flex;gap:30px;align-items:stretch;margin:20px 0 6px}
+.tstat{width:206px;flex:none}
+.teta{font-size:80px;line-height:.9;color:var(--hot);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 7px var(--hot),0 0 22px var(--g1),0 0 56px var(--g2),0 0 100px var(--g3)}
+.teta span{font-size:17px;opacity:.55;margin-left:5px;letter-spacing:.2em}
+.tsub{font-size:11.5px;color:var(--cy);opacity:.9;margin-top:11px;letter-spacing:.16em;
+  text-shadow:0 0 9px var(--g3);display:inline-block}
+.tsub b{color:var(--hot);font-weight:400;text-shadow:0 0 4px var(--g1),0 0 14px var(--g3)}
+.tdelay{color:var(--acc)!important;text-shadow:0 0 5px rgba(255,179,71,.7),0 0 16px rgba(255,179,71,.3)}
+.tmapwrap{flex:1;height:460px;position:relative}
+.tmapc,.tmap{position:absolute;inset:0;width:100%;height:100%}
+.tjam{color:#ff6a4a!important;display:inline-block;
+  text-shadow:0 0 5px rgba(255,106,74,.8),0 0 16px rgba(255,106,74,.35)}
+#focusCard{width:548px;opacity:0;visibility:hidden;transform-origin:50% 50%;padding:20px 24px 22px}
+.panel.ghost{opacity:.1!important}
+.panel{transition:opacity .5s}
+#ringsI,#readout{transition:opacity .55s ease}
+#core.focused #ringsI,#core.focused #readout{opacity:0}
+
+.fhdr{display:flex;justify-content:space-between;align-items:baseline;color:var(--hot);
+  font-size:11px;letter-spacing:.36em;padding-bottom:9px;border-bottom:1px solid var(--g1);
+  box-shadow:0 1px 10px -2px var(--g2);text-shadow:0 0 4px var(--g1),0 0 14px var(--g3)}
+.fhdr span{font-size:9.5px;letter-spacing:.28em;color:var(--cy);opacity:.8}
+.fmain{display:flex;align-items:center;gap:26px;margin:20px 0 18px}
+.ftemp{font-size:78px;line-height:.9;color:var(--hot);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 7px var(--hot),0 0 22px var(--g1),0 0 56px var(--g2),0 0 100px var(--g3)}
+.ftemp span{font-size:24px;opacity:.55;margin-left:2px}
+.fcond{flex:1}
+.fc1{font-size:14px;color:var(--hot);letter-spacing:.2em;margin-bottom:9px;
+  text-shadow:0 0 4px var(--g1),0 0 14px var(--g2),0 0 32px var(--g3)}
+.fc2{font-size:10.5px;color:var(--cy);opacity:.9;line-height:1.9;text-shadow:0 0 9px var(--g3)}
+.fc2.aqiBad{color:var(--acc);text-shadow:0 0 5px rgba(255,179,71,.6),0 0 16px rgba(255,179,71,.3)}
+.fstrip{display:flex;gap:7px;padding:16px 0 6px;border-top:1px solid var(--g3)}
+.hcol{flex:1;text-align:center}
+.hbar{height:52px;display:flex;align-items:flex-end;justify-content:center;
+  background:linear-gradient(180deg,transparent,var(--g3));margin-bottom:7px}
+.hbar i{display:block;width:100%;background:var(--hot);
+  box-shadow:0 0 5px var(--g1),0 0 14px var(--g2);transition:height .7s cubic-bezier(.2,.8,.25,1)}
+.hp{font-size:10.5px;color:var(--hot);opacity:0;height:13px;margin-bottom:4px;
+  letter-spacing:.06em;transition:opacity .4s ease;
+  text-shadow:0 0 4px var(--hot),0 0 13px var(--g1),0 0 30px var(--g3)}
+.hcol{transition:opacity .45s ease}
+.hcol.dim{opacity:.28}
+.ht{font-size:11px;color:var(--hot);text-shadow:0 0 9px var(--g2)}
+.hh{font-size:8.5px;color:var(--cy);opacity:.65;margin-top:4px;letter-spacing:.1em}
+.ffoot{display:flex;justify-content:space-between;font-size:9.5px;color:var(--cy);
+  opacity:.85;margin-top:14px;padding-top:11px;border-top:1px solid var(--g3);text-shadow:0 0 9px var(--g3)}
+.evt{display:flex;gap:16px;padding:14px 0;border-bottom:1px solid var(--g3)}
+.evt .et{font-size:22px;color:var(--hot);font-variant-numeric:tabular-nums;min-width:104px;
+  text-shadow:0 0 5px var(--g1),0 0 18px var(--g2),0 0 44px var(--g3)}
+.evt .en{font-size:12.5px;color:var(--cy);letter-spacing:.14em;line-height:1.6;text-shadow:0 0 9px var(--g3)}
+.evt .en b{display:block;color:var(--hot);font-weight:400;margin-bottom:4px;
+  text-shadow:0 0 4px var(--g1),0 0 14px var(--g3)}
+
+/* ---- spoken-datum highlighting ---- */
+.ffoot span,.fc1,.ftemp,.hcol,.evt{display:inline-block}
+.evt{display:flex}
+@keyframes pulseGlow{
+  0%  {filter:brightness(1)                  ;transform:scale(1)}
+  14% {filter:brightness(3.1) saturate(1.35) ;transform:scale(1.18)}
+  38% {filter:brightness(1.95)               ;transform:scale(1.075)}
+  66% {filter:brightness(1.45)               ;transform:scale(1.022)}
+  100%{filter:brightness(1)                  ;transform:scale(1)}
+}
+@keyframes pulseRing{
+  0%  {opacity:.85;transform:scale(.82)}
+  100%{opacity:0  ;transform:scale(1.5)}
+}
+.pulsing{animation:pulseGlow 1.5s cubic-bezier(.15,.85,.3,1);will-change:filter,transform;
+  position:relative}
+.pulsing::after{content:'';position:absolute;inset:-10px -14px;pointer-events:none;
+  border:1px solid var(--hot);box-shadow:0 0 10px var(--g1),inset 0 0 10px var(--g3);
+  animation:pulseRing .95s cubic-bezier(.2,.8,.3,1) forwards}
+.held{filter:brightness(1.3)}
+.hcol.held .hbar i{box-shadow:0 0 8px var(--g1),0 0 22px var(--g2),0 0 44px var(--g3)}
+/* the matching phrase in the spoken line */
+/* the spoken phrase brightens to link itself to the datum, but never resizes —
+   moving type in a sentence you are reading is a different thing entirely */
+#respTxt .ph.lit{color:var(--hot);
+  text-shadow:0 0 5px var(--hot),0 0 16px var(--g1),0 0 40px var(--g2),0 0 78px var(--g3)}
+#respTxt .ph{transition:color .3s,text-shadow .3s}
+
+#readout{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:44%}
+#big{font-size:64px;line-height:1;color:var(--wht);
+  text-shadow:0 0 6px var(--hot),0 0 20px var(--g1),0 0 50px var(--g2),0 0 92px var(--g3);
+  font-variant-numeric:tabular-nums;letter-spacing:.02em}
+#big span{font-size:20px;opacity:.5;margin-left:3px}
+#stateLabel{font-size:10.5px;letter-spacing:.5em;color:var(--hot);margin-bottom:12px;text-shadow:0 0 4px var(--g1),0 0 14px var(--g2),0 0 32px var(--g3)}
+#stateSub{font-size:9px;letter-spacing:.26em;color:var(--cy);opacity:.85;
+  text-shadow:0 0 9px var(--g2);margin-top:11px;min-height:12px}
+
+/* response */
+#resp{position:absolute;left:50%;bottom:10.5%;transform:translateX(-50%);
+  width:780px;text-align:center;min-height:70px}
+#respTxt{font-size:21px;line-height:1.7;color:var(--wht);letter-spacing:.05em;
+  text-shadow:0 0 4px var(--hot),0 0 13px var(--g1),0 0 34px var(--g2),0 0 68px var(--g3)}
+.car{display:inline-block;color:var(--hot);text-shadow:0 0 10px var(--g1);animation:bl .65s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+#respRule{height:1px;margin:15px auto 0;width:0;opacity:.55;
+  background:linear-gradient(90deg,transparent,var(--hot),transparent);
+  box-shadow:0 0 7px var(--g1),0 0 18px var(--g3);transition:width .55s ease}
+
+/* Ticker tape: the bottom edge belongs to the market strip. The number-key hint
+   above it is dev scaffolding — hidden in kiosk mode, H toggles it. */
+#tape{position:absolute;left:0;right:0;bottom:0;height:30px;overflow:hidden;
+  border-top:1px solid var(--g3)}
+#tapeIn{position:absolute;top:0;bottom:0;display:flex;align-items:center;
+  white-space:nowrap;will-change:transform;animation:tape 60s linear infinite}
+@keyframes tape{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
+.tk{display:inline-flex;align-items:baseline;gap:8px;padding:0 26px;
+  font-size:11.5px;letter-spacing:.12em;font-variant-numeric:tabular-nums}
+.tk .s{color:var(--cy2)}
+.tk .p{color:var(--hot);text-shadow:0 0 8px var(--g2)}
+.tk .c.up{color:var(--cy);text-shadow:0 0 8px var(--g2)}
+.tk .c.dn{color:#ff6a4a;text-shadow:0 0 8px rgba(255,106,74,.4)}
+/* Timeline rail: the next 24 hours down the right edge. The left rail is where
+   you can go; this is what's coming. Populated from data already on the page. */
+#tline{position:absolute;right:56px;top:210px;width:190px;pointer-events:none}
+#tline .tl-hdr{font-size:9px;letter-spacing:.4em;color:var(--cy2);opacity:.7;
+  text-align:right;margin-bottom:14px}
+#tline .tl-rail{position:absolute;right:64px;top:26px;width:1px;
+  background:linear-gradient(180deg,var(--g1),var(--g3) 80%,transparent)}
+.tl-item{position:absolute;right:0;width:190px;display:flex;align-items:center;
+  justify-content:flex-end;gap:9px}
+.tl-item .lab{font-size:9.5px;letter-spacing:.18em;color:var(--cy2);opacity:.8;
+  text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96px}
+.tl-item .tim{width:44px;font-size:10px;color:var(--cy);text-align:right;
+  font-variant-numeric:tabular-nums;letter-spacing:.06em}
+.tl-item .nd{width:7px;height:7px;border:1px solid var(--cy2);transform:rotate(45deg);
+  flex:none;margin-right:-68px;background:#000}
+.tl-item.next .lab{color:var(--hot);opacity:1;
+  text-shadow:0 0 4px var(--g1),0 0 13px var(--g3)}
+.tl-item.next .tim{color:var(--hot);text-shadow:0 0 8px var(--g2)}
+.tl-item.next .nd{border-color:var(--hot);background:var(--hot);
+  box-shadow:0 0 6px var(--g1),0 0 14px var(--g2)}
+#wordmark{position:absolute;top:30px;left:50%;transform:translateX(-50%);text-align:center;
+  pointer-events:none}
+#wordmark .wm{font-size:22px;letter-spacing:.62em;color:var(--hot);padding-left:.62em;
+  text-shadow:0 0 6px var(--hot),0 0 18px var(--g1),0 0 44px var(--g2),0 0 80px var(--g3)}
+#wordmark .wms{font-size:8.5px;letter-spacing:.38em;color:var(--cy2);opacity:.85;
+  margin-top:6px;padding-left:.38em;text-shadow:0 0 8px var(--g3)}
+#hint b{color:var(--hot);font-weight:400}
+#hint{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);
+  font-size:10px;letter-spacing:.42em;color:var(--cy);opacity:0;transition:opacity .7s;
+  text-shadow:0 0 10px var(--g3)}
+#boot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:11px;line-height:2.15;width:440px;text-align:left;
+  text-shadow:0 0 9px var(--g2),0 0 24px var(--g3)}
+#boot div{opacity:0}
+#boot .ok{float:right;color:var(--wht);text-shadow:0 0 4px var(--g1),0 0 13px var(--g2),0 0 30px var(--g3)}
+</style>
+
+<div id="stage">
+  <div id="grid"></div>
+  <div id="wordmark">
+    <div class="wm">A.L.I.C.E.</div>
+    <div class="wms">ATTENTIVE LOCAL INTELLIGENCE &amp; CONCIERGE ENGINE</div>
+  </div>
+  <div class="brk tl"></div><div class="brk tr"></div><div class="brk bl"></div><div class="brk br"></div>
+  <div id="rolo"><div id="roloList"></div><div id="roloBand"></div></div>
+
+  <div id="atmo"></div>
+  <div id="core">
+    <svg viewBox="0 0 800 800" id="svg">
+      <defs><radialGradient id="cg">
+        <stop offset="0%" stop-color="var(--hot)" stop-opacity="1"/>
+        <stop offset="38%" stop-color="var(--cy)" stop-opacity=".42"/>
+        <stop offset="100%" stop-color="var(--cy)" stop-opacity="0"/>
+      </radialGradient></defs>
+      <g id="ringsO" style="filter:drop-shadow(0 0 2px var(--g1)) drop-shadow(0 0 9px var(--g3))"></g><g id="contacts"></g><g id="ringsI" style="filter:drop-shadow(0 0 2px var(--g1)) drop-shadow(0 0 9px var(--g3))"></g><g id="wave" style="filter:drop-shadow(0 0 3px var(--g1)) drop-shadow(0 0 14px var(--g2))"></g>
+      <circle id="glowcore" cx="400" cy="400" r="168" fill="url(#cg)" opacity=".55" style="transition:opacity .4s"/>
+    </svg>
+    <div id="readout">
+      <div id="stateLabel">—</div>
+      <div id="big">0<span>%</span></div>
+      <div id="stateSub"></div>
+    </div>
+  </div>
+
+  <div class="panel p-tl" id="pTL"><div class="frame"><div class="fb"></div><div class="fi"></div><div class="c">
+    <div class="hdr">A.L.I.C.E. &middot; SYSTEM</div>
+    <div class="row"><span class="k">DATA</span><span class="v" id="dataOk">—</span></div>
+    <div class="row"><span class="k">UPLINK</span><span class="v">CONNECTED</span></div>
+    <div class="row"><span class="k">AUDIO IN</span><span class="v" id="audioIn">ARMED</span></div>
+    <div class="row"><span class="k">WAKE WORD</span><span class="v a">HEY JARVIS*</span></div>
+    <div class="row"><span class="k">RESPONSE</span><span class="v" id="lat">0.00s</span></div>
+    <div class="row"><span class="k">DISPLAY</span><span class="v" id="dimRow">AUTO</span></div>
+  </div></div></div>
+
+  <div class="panel p-tr" id="pTR">
+    <div id="clock">--:--<small>--</small></div>
+    <div id="date">—</div><div id="loc">TUCKER · GA</div>
+  </div>
+
+  <div class="panel p-bl" id="pBL"><div class="frame flip"><div class="fb"></div><div class="fi"></div><div class="c">
+    <div class="hdr">TELEMETRY</div>
+    <div class="meter"><div class="lab"><span>PROCESSOR</span><span class="m-v">—</span></div><div class="track"></div></div>
+    <div class="meter"><div class="lab"><span>MEMORY</span><span class="m-v">—</span></div><div class="track"></div></div>
+    <div class="meter"><div class="lab"><span>MIC GAIN</span><span class="m-v">—</span></div><div class="track"></div></div>
+    <div class="meter"><div class="lab"><span>NETWORK</span><span class="m-v">—</span></div><div class="track"></div></div>
+  </div></div></div>
+
+  <div class="panel p-br" id="pBR"><div class="frame flip"><div class="fb"></div><div class="fi"></div><div class="c">
+    <div class="hdr">LOCAL CONDITIONS</div>
+    <div class="row"><span class="k">TEMP</span><span class="v" id="wTemp">—</span></div>
+    <div class="row"><span class="k">FEELS LIKE</span><span class="v" id="wFeels">—</span></div>
+    <div class="row"><span class="k">SKY</span><span class="v" id="wSky">—</span></div>
+    <div class="row"><span class="k">AIR</span><span class="v" id="wAqi">—</span></div>
+    <div class="row"><span class="k" id="wPeakK">PRECIP</span><span class="v a" id="wPeak">—</span></div>
+    <div class="row"><span class="k">SUNSET</span><span class="v" id="wSunset">—</span></div>
+  </div></div></div>
+
+  <div id="focusWrap"><div id="focusCard" class="frame"></div></div>
+  <div id="resp"><div id="respTxt"></div><div id="respRule"></div></div>
+  <div id="tline"><div class="tl-hdr">NEXT 24H</div><div class="tl-rail"></div></div>
+  <div id="hint"></div>
+  <div id="tape"><div id="tapeIn"></div></div>
+  <div id="boot"></div>
+  <div id="sweep"></div><div id="scan"></div><div id="vig"></div>
+</div>
+
+<script src="mapdata.js"></script>
+<script src="maildata.js"></script>
+<script src="weatherdata.js"></script>
+<script src="remindersdata.js"></script>
+<script src="signalsdata.js"></script>
+<script src="scoutsdata.js"></script>
+<script src="cidata.js"></script>
+<script src="appstoredata.js"></script>
+<script src="statusdata.js"></script>
+<script src="calendardata.js"></script>
+<script src="tickerdata.js"></script>
+<script src="queuedata.js"></script>
+<script src="newsdata.js"></script>
+<script src="flightdata.js"></script>
+<script src="workdata.js"></script>
+<script src="aircraftdata.js"></script>
+<script src="radardata.js"></script>
+<script src="skydata.js"></script>
+<script src="onthisdaydata.js"></script>
+<script src="personadata.js"></script>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const NS='http://www.w3.org/2000/svg';
+const el=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e};
+const CX=400,CY=400,R=(d)=>d*Math.PI/180;
+const ringsO=$('#ringsO'),ringsI=$('#ringsI');let TGT=ringsO;
+const spin=(g,d)=>{g.classList.add('spin');g.style.animationName=d<0?'rotr':'rot';g.style.animationDuration=Math.abs(d)+'s';return g};
+const add=g=>{TGT.appendChild(g);return g};
+
+function ringC(r,o={}){return add(el('circle',{cx:CX,cy:CY,r,fill:'none',
+  stroke:o.s||'var(--dim)','stroke-width':o.w||1,opacity:o.o??.6,
+  ...(o.dash?{'stroke-dasharray':o.dash}:{})}))}
+
+function ticks(r,n,len,o={}){const g=el('g');
+  for(let i=0;i<n;i++){const a=R(i/n*360),L=(o.every&&i%o.every===0)?(o.longLen||len*2.2):len;
+    g.appendChild(el('line',{x1:CX+Math.cos(a)*r,y1:CY+Math.sin(a)*r,
+      x2:CX+Math.cos(a)*(r+L),y2:CY+Math.sin(a)*(r+L),
+      stroke:o.s||'var(--dim)','stroke-width':o.w||1,opacity:o.o??.55}))}
+  return add(o.spin?spin(g,o.spin):g)}
+
+function arcPath(r,a0,a1){const p=a=>[CX+r*Math.cos(R(a)),CY+r*Math.sin(R(a))];
+  const[x0,y0]=p(a0),[x1,y1]=p(a1);return `M${x0} ${y0} A${r} ${r} 0 ${(a1-a0)>180?1:0} 1 ${x1} ${y1}`}
+
+function arcs(r,segs,o={}){const g=el('g'),st=360/segs;
+  for(let i=0;i<segs;i++){const gp=o.gap??18;
+    g.appendChild(el('path',{d:arcPath(r,i*st+gp/2,(i+1)*st-gp/2),fill:'none',
+      stroke:o.s||'var(--cy)','stroke-width':o.w||2,opacity:o.o??.85}))}
+  return add(o.spin?spin(g,o.spin):g)}
+
+/* chunky block belt (image 1 / 2) */
+function blocks(r,n,o={}){const g=el('g'),h=o.h||9,wdt=o.bw||5;
+  for(let i=0;i<n;i++){const a=i/n*360;
+    const rc=el('rect',{x:CX-wdt/2,y:CY-r-h/2,width:wdt,height:h,
+      fill:o.s||'var(--cy)',opacity:(o.alt&&i%o.alt)?.18:(o.o??.75)});
+    rc.setAttribute('transform',`rotate(${a} ${CX} ${CY})`);g.appendChild(rc)}
+  return add(o.spin?spin(g,o.spin):g)}
+
+/* inward-pointing triangle markers (image 1) */
+function arrows(r,n,o={}){const g=el('g'),sz=o.sz||11;
+  for(let i=0;i<n;i++){const a=i/n*360;
+    const p=el('path',{d:`M ${CX-sz} ${CY-r} L ${CX+sz} ${CY-r} L ${CX} ${CY-r+sz*1.5} Z`,
+      fill:o.s||'var(--cy)',opacity:o.o??.7});
+    p.setAttribute('transform',`rotate(${a} ${CX} ${CY})`);g.appendChild(p)}
+  return add(o.spin?spin(g,o.spin):g)}
+
+/* cardinal compass letters */
+function cardinals(r){const g=el('g');
+  [['N',-90],['E',0],['S',90],['W',180]].forEach(([c,a])=>{
+    const t=el('text',{x:CX+Math.cos(R(a))*r,y:CY+Math.sin(R(a))*r,
+      fill:'var(--cy2)','font-size':13,'text-anchor':'middle','dominant-baseline':'middle',
+      opacity:.55,'letter-spacing':2});t.textContent=c;g.appendChild(t)});
+  return add(g)}
+
+/* ---- assembly, outer to inner ---- */
+cardinals(398);
+ticks(370,144,7,{o:.5,every:12,longLen:18,s:'var(--cy2)'});
+ringC(362,{o:.5});
+arcs(348,3,{w:7,gap:44,o:.7,s:'var(--dim)',spin:-210});
+blocks(330,56,{h:10,bw:4,alt:3,o:.75,spin:170});
+ringC(316,{o:.55,dash:'2 9'});
+arrows(300,8,{sz:10,o:.9,s:'var(--hot)',spin:-120});
+TGT=ringsI;
+ticks(280,180,6,{o:.4,spin:95});
+arcs(266,5,{w:4,gap:26,o:.95,s:'var(--hot)',spin:-64});
+blocks(248,40,{h:14,bw:6,alt:2,o:.9,s:'var(--hot)',spin:130});
+ringC(236,{o:.6});
+ticks(214,72,11,{o:.55,every:6,longLen:22,spin:-88});
+arcs(200,2,{w:2.5,gap:70,o:.9,s:'var(--cy2)',spin:44});
+ringC(150,{s:'var(--hot)',o:.7});
+ringC(142,{o:.5});
+ticks(134,60,5,{o:.5,spin:-30});
+
+/* ---- radial spoke burst = the voice ---- */
+const N=156;let RW=156,RWt=156,WL=128,WLt=128;const wave=$('#wave'),bars=[];
+for(let i=0;i<N;i++){const a=R(i/N*360);
+  const l=el('line',{x1:CX+Math.cos(a)*RW,y1:CY+Math.sin(a)*RW,
+    x2:CX+Math.cos(a)*RW,y2:CY+Math.sin(a)*RW,
+    stroke:'var(--hot)','stroke-width':2.2,'stroke-linecap':'butt',opacity:.85});
+  wave.appendChild(l);bars.push({el:l,a,v:0,t:i*.37})}
+
+/* ---- state ---- */
+const ST={
+  IDLE     :{l:'STANDBY',   s:'AWAITING WAKE WORD', e:.30},
+  WAKE     :{l:'ATTENTION', s:'WAKE WORD DETECTED', e:.95},
+  LISTENING:{l:'LISTENING', s:'SPEAK NOW',          e:.8},
+  THINKING :{l:'PROCESSING',s:'QUERY IN FLIGHT',    e:.45},
+  SPEAKING :{l:'RESPONDING',s:'',                   e:.9}
+};
+let state='IDLE',energy=.30;
+function setState(k,sub){state=k;const S=ST[k];
+  $('#stateLabel').textContent=S.l;
+  $('#stateSub').textContent=sub!==undefined?sub:S.s;
+  $('#glowcore').style.opacity=isFocused?0:(k==='IDLE'?.5:.95);
+  if(k==='WAKE'||k==='SPEAKING'){const w=$('#sweep');w.classList.remove('sweeping');void w.offsetWidth;w.classList.add('sweeping')}}
+
+let last=performance.now(),lvl=0;
+function frame(now){
+  const dt=Math.min(50,now-last)/1000;last=now;
+  energy+=((micLive?1:ST[state].e)-energy)*Math.min(1,dt*4);
+  RW+=(RWt-RW)*Math.min(1,dt*3.4); WL+=(WLt-WL)*Math.min(1,dt*3.4);
+  let sum=0;
+  for(let i=0;i<N;i++){const b=bars[i];b.t+=dt*(1.1+(i%9)*.14);
+    let amp;
+    if(micLive){
+      // real room audio: a common envelope, with per-spoke variation so it still
+      // reads as a living ring rather than 156 bars moving in lockstep
+      const wob=(Math.sin(b.t*2.6+i*.41)*.5+.5)*.45+.55;
+      amp=(.16+micLevel*1.25)*wob;
+    }
+    else if(state==='IDLE') amp=.22+(Math.sin(b.t*.7+i*.28)*.5+.5)*.30;
+    else if(state==='THINKING'){const p=Math.sin(now/240-i*.11)*.5+.5;amp=Math.pow(p,4)*.7}
+    else{const n=Math.sin(b.t*3.3+i)*.5+Math.sin(b.t*8.1+i*1.9)*.3+Math.sin(b.t*14.7)*.2;
+      const env=state==='SPEAKING'?(Math.sin(now/145)*.34+.66):1;
+      amp=Math.max(0,n*.5+.5)*env}
+    const v=amp*energy;b.v+=(v-b.v)*Math.min(1,dt*15);sum+=b.v;
+    const len=4+b.v*WL;
+    b.el.setAttribute('x1',CX+Math.cos(b.a)*RW);
+    b.el.setAttribute('y1',CY+Math.sin(b.a)*RW);
+    b.el.setAttribute('x2',CX+Math.cos(b.a)*(RW+len));
+    b.el.setAttribute('y2',CY+Math.sin(b.a)*(RW+len));
+    b.el.setAttribute('opacity',.45+b.v*.55)}
+  const target=Math.min(99,(sum/N)*260);lvl+=(target-lvl)*Math.min(1,dt*6);
+  $('#big').innerHTML=Math.round(lvl)+'<span>%</span>';
+  requestAnimationFrame(frame)}
+
+/* ---- typing ---- */
+let typing=null;
+/* Answers are authored with [phrase|target] markers. The phrase is spoken/typed
+   normally; the moment it completes, the matching datum on screen pulses. */
+function parseAnswer(str){
+  const parts=[],re=/\[([^\]|]+)\|([^\]]+)\]/g;let last=0,m;
+  while((m=re.exec(str))){
+    if(m.index>last)parts.push({text:str.slice(last,m.index),t:null});
+    parts.push({text:m[1],t:m[2]});last=re.lastIndex}
+  if(last<str.length)parts.push({text:str.slice(last),t:null});
+  return parts}
+
+let sayGen=0;
+function say(str,done){
+  clearInterval(typing); const gen=++sayGen;
+  const parts=parseAnswer(str),box=$('#respTxt');
+  box.innerHTML='';$('#respRule').style.width='0';
+  const spans=parts.map(p=>{const e=document.createElement('span');
+    if(p.t){e.className='ph';e.dataset.t=p.t}box.appendChild(e);return e});
+  const car=document.createElement('span');car.className='car';car.textContent='▌';box.appendChild(car);
+  let pi=0,ci=0;
+  function step(){
+    if(gen!==sayGen){clearInterval(typing);return}
+    if(pi>=parts.length){clearInterval(typing);car.remove();
+      $('#respRule').style.width='100%';done&&done();return}
+    ci++; spans[pi].textContent=parts[pi].text.slice(0,ci);
+    if(ci>=parts[pi].text.length){
+      const marked=parts[pi].t;
+      if(marked){spans[pi].classList.add('lit');pulseTarget(marked)}
+      pi++; ci=0;
+      if(marked){                       // hold on the pulse before typing on
+        clearInterval(typing);
+        setTimeout(()=>{if(gen===sayGen)typing=setInterval(step,26)},700);
+      }
+    }
+  }
+  typing=setInterval(step,26);
+}
+
+
+/* ---- focus mode: a corner panel is summoned to the centre ---- */
+const HOURS=[{h:'11A',t:86,p:8},{h:'12P',t:88,p:12},{h:'1P',t:90,p:18},{h:'2P',t:91,p:34},
+             {h:'3P',t:90,p:52},{h:'4P',t:86,p:68},{h:'5P',t:83,p:61},{h:'6P',t:80,p:40}];
+const CARD=(inner)=>'<div class="fb"></div><div class="fi"></div><div class="c">'+inner+'</div>';
+
+const FOCUS={
+  weather:{src:'#pBR',
+   targets:{temp:'.ftemp',cond:'.fc1',loc:'.fhdr span',
+            hour:'.fstrip .hcol.pk .hh',
+            precip:{sel:'.fstrip .hcol.pk',surge:true},
+            sunset:'.ffoot span:last-child'},
+   build:()=>{const W=(typeof WEATHER!=='undefined')?WEATHER:null;
+     if(!W) return CARD('<div class="fhdr">LOCAL CONDITIONS</div>'+
+       '<div class="mempty">NO WEATHER DATA — RUN tools/refresh-weather.py</div>');
+     const pk=W.peak||0;
+     return CARD(`
+     <div class="fhdr">LOCAL CONDITIONS <span>${W.place}</span></div>
+     <div class="fmain">
+       <div class="ftemp">${W.temp}<span>&deg;F</span></div>
+       <div class="fcond">
+         <div class="fc1">${W.sky}</div>
+         <div class="fc2">FEELS LIKE ${W.feels}&deg; &nbsp;&middot;&nbsp; HUMIDITY ${W.humidity}%</div>
+         <div class="fc2">WIND ${W.wind} MPH ${W.windDir} &nbsp;&middot;&nbsp; ${W.pressure} inHg</div>
+         ${W.aqi!=null?`<div class="fc2${W.aqi>100?' aqiBad':''}">AIR QUALITY ${W.aqi}
+           &nbsp;&middot;&nbsp; ${W.aqiLabel}${W.aqiPeak&&W.aqiPeak>W.aqi?` &nbsp;&middot;&nbsp; PEAKS ${W.aqiPeak}`:''}</div>`:''}
+       </div>
+     </div>
+     <div class="fstrip">`+W.hours.map(h=>`
+       <div class="hcol${(h.p===pk&&pk>0)?' pk':''}"><div class="hp">${h.p}%</div>
+       <div class="hbar"><i data-h="${h.p}" style="height:0"></i></div>
+       <div class="ht">${h.t}&deg;</div><div class="hh">${h.h}</div></div>`).join('')+`
+     </div>
+     <div class="ffoot"><span>SUNRISE ${W.sunrise}</span>`+
+     `<span>HI ${W.hi} / LO ${W.lo}</span>`+
+     `<span>SUNSET ${W.sunset}</span></div>`)}},
+
+  daylight:{src:'#pBR',
+   targets:{left:'.sunbig',sunset:'.ffoot span:last-child',sunrise:'.ffoot span:first-child'},
+   build:()=>{const W=(typeof WEATHER!=='undefined')?WEATHER:null;
+     if(!W) return CARD('<div class="fhdr">DAYLIGHT</div>'+
+       '<div class="mempty">NO WEATHER DATA</div>');
+     const mins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m};
+     const now=new Date(), nowM=now.getHours()*60+now.getMinutes();
+     const up=mins(W.sunrise), down=mins(W.sunset);
+     const isDay=nowM>=up&&nowM<=down;
+     const t=Math.max(0,Math.min(1,(nowM-up)/Math.max(1,down-up)));
+     const fmt=m=>`${Math.floor(Math.abs(m)/60)}H ${String(Math.abs(m)%60).padStart(2,'0')}M`;
+     const left=isDay?down-nowM:(nowM<up?up-nowM:1440-nowM+up);
+
+     // ellipse: centre (210,170), rx 180, ry 140 — sunrise left, noon top, sunset right
+     const X=u=>210-180*Math.cos(Math.PI*u), Y=u=>170-140*Math.sin(Math.PI*u);
+     const arc=(a,b)=>{const pts=[];for(let i=0;i<=48;i++){const u=a+(b-a)*i/48;
+       pts.push(X(u).toFixed(1)+' '+Y(u).toFixed(1))} return 'M'+pts.join('L')};
+     const sx=X(t).toFixed(1), sy=Y(t).toFixed(1);
+
+     return CARD(`
+     <div class="fhdr">DAYLIGHT <span>${W.place}</span></div>
+     <div class="sunwrap">
+       <svg class="sunsvg" viewBox="0 0 420 210" preserveAspectRatio="xMidYMid meet">
+         <path d="${arc(0,1)}" fill="none" stroke="var(--cy2)" stroke-width="1.2"
+               opacity=".35" stroke-dasharray="3 6"/>
+         ${isDay?`<path d="${arc(0,t)}" fill="none" stroke="var(--hot)" stroke-width="2.4"
+               stroke-linecap="round" style="filter:drop-shadow(0 0 4px var(--g1))"/>`:''}
+         <line x1="14" y1="170" x2="406" y2="170" stroke="var(--cy)" stroke-width="1" opacity=".5"/>
+         <line x1="30" y1="170" x2="30" y2="182" stroke="var(--cy2)" stroke-width="1" opacity=".7"/>
+         <line x1="390" y1="170" x2="390" y2="182" stroke="var(--cy2)" stroke-width="1" opacity=".7"/>
+         <text x="30" y="198" fill="var(--cy2)" font-size="10" text-anchor="middle"
+               letter-spacing="1.5" opacity=".8">${W.sunrise}</text>
+         <text x="390" y="198" fill="var(--cy2)" font-size="10" text-anchor="middle"
+               letter-spacing="1.5" opacity=".8">${W.sunset}</text>
+         ${isDay?`<g style="filter:drop-shadow(0 0 6px var(--g1))">
+           <circle cx="${sx}" cy="${sy}" r="9" fill="none" stroke="var(--hot)" stroke-width="1.5"/>
+           <circle cx="${sx}" cy="${sy}" r="4.5" fill="var(--hot)"/></g>`:''}
+       </svg>
+     </div>
+     <div style="text-align:center;margin-top:-6px">
+       <div class="sunbig">${fmt(left)}</div>
+       <div class="sunlab">${isDay?'OF DAYLIGHT REMAINING':(nowM<up?'UNTIL SUNRISE':'UNTIL SUNRISE')}</div>
+     </div>
+     <div class="ffoot" style="margin-top:18px"><span>SUNRISE ${W.sunrise}</span>`+
+     `<span>DAY LENGTH ${fmt(down-up)}</span>`+
+     `<span>SUNSET ${W.sunset}</span></div>`)}},
+
+  auction:{src:null,wide:true,
+   targets:{nearby:'.mbig',total:'.aTot',top:'.mrow:first-child .msubj'},
+   build:()=>{const A=(typeof SCOUTS!=='undefined')?SCOUTS.auction:null;
+     if(!A||A.error) return CARD('<div class="fhdr">AUCTION SCOUT</div>'+
+       '<div class="mempty">NO DIGEST — SCOUT HAS NOT RUN</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const usd=n=>n==null?'—':'$'+n.toLocaleString();
+     const old=(A.ageDays||0)>8;
+     return CARD(`
+       <div class="fhdr">AUCTION SCOUT <span>RUN ${esc(A.run||'—')}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${A.nearby}<span>NEARBY</span></div>
+           <div class="macct aTot"><span>TRACTS FOUND</span><b>${A.total}</b></div>
+           <div class="macct"><span>WITHIN</span><b>60 MI</b></div>
+           <div class="macct"><span>DIGEST</span>
+             <b class="${old?'stale':''}">${A.ageDays===0?'TODAY':A.ageDays+'D OLD'}</b></div>
+         </div>
+         <div class="mlist">
+           ${A.items.length ? A.items.map(i=>
+             `<div class="mrow new"><div class="mdot"></div>`+
+             `<div class="tick">${esc(i.area)}</div>`+
+             `<div class="msubj">${esc(i.address)}</div>`+
+             `<div class="px">${usd(i.allIn)}</div>`+
+             `<div class="pnum">${i.upside!=null?'+'+i.upside+'%':'—'}</div></div>`).join('')
+             : `<div class="mempty">NOTHING FOUND</div>`}
+         </div>
+       </div>
+       <div class="ffoot"><span>SORTED BY UPSIDE, THEN DISTANCE</span>`+
+       `<span>GOV AUCTIONS &middot; WEEKLY</span></div>`)}},
+
+  acquisition:{src:null,wide:true,
+   targets:{now:'.mbig',total:'.qTot',top:'.mrow:first-child .tick'},
+   build:()=>{const Q=(typeof SCOUTS!=='undefined')?SCOUTS.acquisition:null;
+     if(!Q||Q.error) return CARD('<div class="fhdr">ACQUISITION SCOUT</div>'+
+       '<div class="mempty">NO DIGEST — SCOUT HAS NOT RUN</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const t=Q.tiers||{}, old=(Q.ageDays||0)>8;
+     return CARD(`
+       <div class="fhdr">ACQUISITION SCOUT <span>APPS UNDER $30K</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${t.lookNow||0}<span>LOOK NOW</span></div>
+           <div class="macct qTot"><span>CANDIDATES</span><b>${Q.total}</b></div>
+           <div class="macct"><span>WORTH A LOOK</span><b>${t.worthLook||0}</b></div>
+           <div class="macct"><span>DIGEST</span>
+             <b class="${old?'stale':''}">${Q.ageDays===0?'TODAY':Q.ageDays+'D OLD'}</b></div>
+         </div>
+         <div class="mlist">
+           ${Q.items.length ? Q.items.map(i=>
+             `<div class="mrow new"><div class="mdot"></div>`+
+             `<div class="pnum">${i.score}</div>`+
+             `<div class="msubj">${esc(i.name)}</div>`+
+             `<div class="px">${i.ratings.toLocaleString()}</div>`+
+             `<div class="px">${i.stars}&#9733;</div>`+
+             `<div class="px">${i.months}mo</div></div>`).join('')
+             : `<div class="mempty">NOTHING FOUND</div>`}
+         </div>
+       </div>
+       <div class="ffoot"><span>DORMANT APPS, LARGE INSTALLED BASE</span>`+
+       `<span>SCORED BY REACHABILITY</span></div>`)}},
+
+  appstore:{src:null,wide:true,
+   targets:{attention:'.mbig',top:'.mrow:first-child .msubj',live:'.aLive'},
+   build:()=>{const A=(typeof APPSTORE!=='undefined')?APPSTORE:null;
+     if(!A) return CARD('<div class="fhdr">APP STORE</div>'+
+       '<div class="mempty">NO DATA — RUN tools/appstore.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const cls=r=>{const s=r.raw||'';
+       if(/REJECT|INVALID/.test(s)) return 'bad';
+       if(s==='READY_FOR_SALE') return 'live';
+       return 'hot'};
+     return CARD(`
+       <div class="fhdr">APP STORE <span>${A.total} APPS &middot; ${A.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig${A.attention?' bad':''}">${A.attention}<span>NEED YOU</span></div>
+           <div class="macct aLive"><span>LIVE</span><b>${A.live}</b></div>
+           <div class="macct"><span>ON ACCOUNT</span><b>${A.total}</b></div>
+           <div class="macct"><span>SOURCE</span><b>ASC</b></div>
+         </div>
+         <div class="mlist">
+           ${A.rows.map(r=>
+             `<div class="mrow${cls(r)==='live'?'':' new'}"><div class="mdot"></div>`+
+             `<div class="st ${cls(r)}">${esc(r.state)}</div>`+
+             `<div class="msubj">${esc(r.name)}</div>`+
+             `<div class="px">v${esc(r.version)}</div>`+
+             `<div class="mtime">${r.days==null?'—':r.days+'d'}</div></div>`).join('')}
+         </div>
+       </div>
+       <div class="ffoot"><span>${A.attention?'WAITING ON YOU FIRST':'NOTHING PENDING'}</span>`+
+       `<span>APP STORE CONNECT</span></div>`)}},
+
+  onthisday:{src:null,wide:true,
+   targets:{count:'.mbig',top:'.mrow:first-child .msubj'},
+   build:()=>{const O=(typeof OTD!=='undefined')?OTD:null;
+     if(!O) return CARD('<div class="fhdr">ON THIS DAY</div>'+
+       '<div class="mempty">NO DATA — RUN tools/onthisday.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     return CARD(`
+       <div class="fhdr">ON THIS DAY <span>${esc(O.date)} &middot; YOUR OWN LEDGER</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${O.total}<span>EVENTS</span></div>
+           <div class="macct"><span>SOURCE</span><b>52 REPOS</b></div>
+           <div class="macct"><span>KINDS</span><b>BORN &middot; SHIPPED</b></div>
+         </div>
+         <div class="mlist">
+           ${O.events.length?O.events.map(e=>
+             `<div class="mrow new"><div class="mdot"></div>`+
+             `<div class="st ${e.kind==='BORN'?'hot':'live'}" style="width:72px">${esc(e.kind)}</div>`+
+             `<div class="msubj">${esc(e.text)}</div>`+
+             `<div class="mtime">${esc(e.when).slice(0,7)}</div></div>`).join('')
+             :`<div class="mempty">NOTHING FROM THIS DATE YET — THE LEDGER IS YOUNG</div>`}
+         </div>
+       </div>
+       <div class="ffoot"><span>MONTHLY ANNIVERSARIES FROM GIT HISTORY</span>`+
+       `<span>NO APIS &middot; ALL YOURS</span></div>`)}},
+
+  sky:{src:null,wide:true,
+   targets:{next:'.mbig',pass:'.mrow:first-child .tick'},
+   build:()=>{const S=(typeof SKY!=='undefined')?SKY:null;
+     if(!S) return CARD('<div class="fhdr">SKY TONIGHT</div>'+
+       '<div class="mempty">NO DATA — RUN tools/sky.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const P=S.passes||[], L=S.launches||[];
+     return CARD(`
+       <div class="fhdr">SKY TONIGHT <span>COMPUTED LOCALLY &middot; ${S.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${P.length}<span>ISS PASSES</span></div>
+           <div class="macct"><span>WINDOW</span><b>48 H</b></div>
+           <div class="macct"><span>LAUNCHES</span><b>${L.length}</b></div>
+           <div class="macct"><span>MIN ELEV</span><b>20&deg;</b></div>
+         </div>
+         <div class="mlist">
+           ${P.map(p=>
+             `<div class="mrow new"><div class="mdot"></div>`+
+             `<div class="tick" style="width:52px">ISS</div>`+
+             `<div class="mwhen" style="width:110px">${esc(p.peak)}</div>`+
+             `<div class="msubj">VISIBLE PASS &middot; MAX ${p.maxElev}&deg; ABOVE HORIZON</div></div>`).join('')}
+           ${P.length?'':'<div class="mrow"><div class="mdot"></div><div class="msubj">NO VISIBLE ISS PASSES IN THE NEXT TWO NIGHTS</div></div>'}
+           ${L.map(l=>{const d=new Date(l.net+'Z');
+             return `<div class="mrow"><div class="mdot"></div>`+
+             `<div class="tick" style="width:52px">LNCH</div>`+
+             `<div class="mwhen" style="width:110px">${d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase()}</div>`+
+             `<div class="msubj">${esc(l.name)}${l.pad?' &middot; '+esc(l.pad):''}</div></div>`}).join('')}
+         </div>
+       </div>
+       <div class="ffoot"><span>ISS FROM CELESTRAK ELEMENTS &middot; SGP4</span>`+
+       `<span>LAUNCHES: THESPACEDEVS</span></div>`)}},
+
+  radar:{src:null,wide:true,
+   targets:{state:'.mbig',time:'.rTime'},
+   after:card=>runRadar(card),
+   build:()=>{const R=(typeof RADAR!=='undefined')?RADAR:null;
+     if(!R||!R.frames.length) return CARD('<div class="fhdr">RADAR</div>'+
+       '<div class="mempty">NO RADAR DATA — RUN tools/radar.py</div>');
+     return CARD(`
+       <div class="fhdr">PRECIPITATION RADAR <span>~${R.kmAcross} KM &middot; ${R.fetched}</span></div>
+       <div class="tmain">
+         <div class="tstat">
+           <div class="mbig">${R.wet?'WET':'DRY'}<span>&nbsp;</span></div>
+           <div class="macct rTime"><span>FRAME</span><b>—</b></div>
+           <div class="macct"><span>FRAMES</span><b>${R.frames.length}</b></div>
+           <div class="macct"><span>ECHOES IN</span><b>${R.wet}/${R.frames.length}</b></div>
+         </div>
+         <div class="tmapwrap"><canvas class="rcv" style="position:absolute;inset:0;width:100%;height:100%"></canvas></div>
+       </div>
+       <div class="ffoot"><span>LOOPING PAST HOUR${R.frames.some(f=>f.nowcast)?' + NOWCAST':''}</span>`+
+       `<span>RAINVIEWER &middot; TINTED TO PALETTE</span></div>`)}},
+
+  airspace:{src:null,wide:true,
+   targets:{count:'.mbig',top:'.mrow:first-child .tick'},
+   build:()=>{const A=(typeof AIRCRAFT!=='undefined')?AIRCRAFT:null;
+     if(!A) return CARD('<div class="fhdr">AIRSPACE</div>'+
+       '<div class="mempty">NO DATA — RUN tools/aircraft.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const pt=b=>['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(b/22.5)%16];
+     return CARD(`
+       <div class="fhdr">AIRSPACE <span>30 KM RADIUS &middot; ${A.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${A.airborne}<span>AIRBORNE</span></div>
+           <div class="macct"><span>CONTACTS</span><b>${A.total}</b></div>
+           <div class="macct"><span>SOURCE</span><b>OPENSKY</b></div>
+           <div class="macct"><span>RING</span><b>LIVE</b></div>
+         </div>
+         <div class="mlist">
+           ${A.planes.length?A.planes.slice(0,6).map(p=>
+             `<div class="mrow${p.ground?'':' new'}"><div class="mdot"></div>`+
+             `<div class="tick">${esc(p.call)}</div>`+
+             `<div class="mwhen" style="width:96px">${p.km} KM ${pt(p.brg)}</div>`+
+             `<div class="msubj">${p.ground?'ON THE GROUND':(p.alt?p.alt+' M':'—')+' &middot; '+p.spd+' KT'+(p.hdg!=null?' &middot; HDG '+p.hdg:'')}</div></div>`).join('')
+             :`<div class="mempty">CLEAR SKIES</div>`}
+         </div>
+       </div>
+       <div class="ffoot"><span>CONTACTS ON THE COMPASS RING ARE THESE AIRCRAFT</span>`+
+       `<span>ADS-B &middot; ANON</span></div>`)}},
+
+  news:{src:null,wide:true,
+   targets:{top:'.mrow:first-child .msubj',count:'.mbig'},
+   build:()=>{const N=(typeof NEWS!=='undefined')?NEWS:null;
+     if(!N||!N.rows.length) return CARD('<div class="fhdr">NEWS</div>'+
+       '<div class="mempty">NO FEEDS REACHABLE</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const t=x=>{if(!x.ts)return '';const d=new Date(x.ts);
+       return d.toDateString()===new Date().toDateString()
+         ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+         : d.toLocaleDateString('en-US',{month:'short',day:'numeric'})};
+     return CARD(`
+       <div class="fhdr">HEADLINES <span>${N.ok}/${N.feeds} SOURCES &middot; ${N.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${N.rows.length}<span>STORIES</span></div>
+           ${[...new Set(N.rows.map(r=>r.src))].slice(0,4).map(s=>
+             `<div class="macct"><span>${esc(s)}</span><b>${N.rows.filter(r=>r.src===s).length}</b></div>`).join('')}
+         </div>
+         <div class="mlist">
+           ${N.rows.slice(0,7).map(r=>
+             `<div class="mrow"><div class="mdot"></div>`+
+             `<div class="tick" style="width:78px">${esc(r.src)}</div>`+
+             `<div class="msubj">${esc(r.title)}</div>`+
+             `<div class="mtime">${t(r)}</div></div>`).join('')}
+         </div>
+       </div>
+       <div class="ffoot"><span>SOURCES ARE CONFIG — EDIT config.local.json</span>`+
+       `<span>RSS &middot; ROUND-ROBIN</span></div>`)}},
+
+  queues:{src:null,wide:true,
+   targets:{broken:'.mbig',top:'.mrow:first-child .msubj',waiting:'.qWait'},
+   build:()=>{const Q=(typeof QUEUES!=='undefined')?QUEUES:null;
+     if(!Q) return CARD('<div class="fhdr">PIPELINES</div>'+
+       '<div class="mempty">NO DATA — RUN tools/queues.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const cls={broken:'bad',low:'hot',ok:'live'};
+     return CARD(`
+       <div class="fhdr">CONTENT PIPELINES <span>${Q.rows.length} ACCOUNTS &middot; ${Q.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig${Q.broken?' bad':''}">${Q.broken}<span>BROKEN</span></div>
+           <div class="macct qWait"><span>NEED APPROVAL</span><b>${Q.waiting}</b></div>
+           <div class="macct"><span>PIPELINES</span><b>${Q.rows.length}</b></div>
+           <div class="macct"><span>SOURCE</span><b>ON-DISK</b></div>
+         </div>
+         <div class="mlist">
+           ${Q.rows.map(r=>
+             `<div class="mrow${r.state==='ok'?'':' new'}"><div class="mdot"></div>`+
+             `<div class="st ${cls[r.state]||''}">${esc(r.state).toUpperCase()}</div>`+
+             `<div class="mfrom" style="width:128px">${esc(r.name)}</div>`+
+             `<div class="msubj">${esc(r.note)}</div>`+
+             `<div class="mtime">${r.last?esc(r.last).slice(5):'—'}</div></div>`).join('')}
+         </div>
+       </div>
+       <div class="ffoot"><span>${Q.broken?'BROKEN SHOWN FIRST':'ALL POSTING'}</span>`+
+       `<span>IG &times;3 &middot; REDDIT DIGEST</span></div>`)}},
+
+  builds:{src:null,wide:true,
+   targets:{failing:'.mbig',top:'.mrow:first-child .msubj',green:'.cGreen'},
+   build:()=>{const C=(typeof CI!=='undefined')?CI:null;
+     if(!C) return CARD('<div class="fhdr">BUILDS</div>'+
+       '<div class="mempty">NO DATA — RUN tools/ci.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const bad=C.failing>0;
+     return CARD(`
+       <div class="fhdr">BUILDS <span>${C.all} REPOS &middot; ${C.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig${bad?' bad':''}">${C.failing}<span>${C.failing===1?'RED':'RED'}</span></div>
+           <div class="macct cGreen"><span>GREEN</span><b>${C.passing}</b></div>
+           <div class="macct"><span>RUNNING</span><b>${C.running}</b></div>
+           <div class="macct"><span>REPOS</span><b>${C.all}</b></div>
+         </div>
+         <div class="mlist">
+           ${C.rows.map(r=>
+             `<div class="mrow${r.state==='pass'?'':' new'}"><div class="mdot"></div>`+
+             `<div class="st ${r.state}">${esc(r.state).toUpperCase()}</div>`+
+             `<div class="msubj">${esc(r.repo)}</div>`+
+             `<div class="px">${esc(r.workflow||'')}</div>`+
+             `<div class="mtime">${r.days==null?'—':r.days+'d'}</div></div>`).join('')}
+         </div>
+       </div>
+       <div class="ffoot"><span>${bad?'RED SHOWN FIRST':'ALL GREEN'}</span>`+
+       `<span>GITHUB ACTIONS</span></div>`)}},
+
+  signals:{src:null,wide:true,
+   targets:{watching:'.mbig',top:'.mrow:first-child .tick',run:'.sRun'},
+   build:()=>{const S=(typeof SIGNALS!=='undefined')?SIGNALS:null;
+     if(!S) return CARD('<div class="fhdr">SIGNALS</div>'+
+       '<div class="mempty">NO DATA — RUN tools/signals.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const old=(S.ageDays||0)>2;
+     return CARD(`
+       <div class="fhdr">BREAKOUT SIGNALS <span>${S.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${S.watching}<span>ON WATCH</span></div>
+           <div class="macct sRun"><span>LAST SIGNAL</span><b>${esc(S.runDate).slice(5)}</b></div>
+           <div class="macct"><span>IN THAT RUN</span><b>${S.total}</b></div>
+           <div class="macct"><span>EVENT DATA</span>
+             <b class="${old?'stale':''}">${S.ageDays===0?'TODAY':S.ageDays+'D OLD'}</b></div>
+         </div>
+         <div class="mlist">
+           ${S.picks.length ? S.picks.map(p=>
+             `<div class="mrow new"><div class="mdot"></div>`+
+             `<div class="tick">${esc(p.ticker)}</div>`+
+             `<div class="px">${p.close.toFixed(2)}</div>`+
+             `<div class="pbar"><i style="width:${Math.max(3,p.prob)}%"></i></div>`+
+             `<div class="pnum">${p.prob}%</div>`+
+             `<div class="px">${p.stop.toFixed(2)}</div></div>`).join('')
+             : `<div class="mempty">NO SIGNALS IN THE LAST RUN</div>`}
+         </div>
+       </div>
+       <div class="ffoot">${S.strategies.map(x=>
+         `<span>${esc(x.label)} ${x.pending}</span>`).join('')}</div>`)}},
+
+  reminders:{src:null,wide:true,
+   targets:{overdue:'.rOver',today:'.rToday',total:'.mbig'},
+   build:()=>{const R=(typeof REMINDERS!=='undefined')?REMINDERS:null;
+     if(!R) return CARD('<div class="fhdr">REMINDERS</div>'+
+       '<div class="mempty">NO DATA — RUN tools/reminders.py</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const when=d=>{ if(!d)return 'NO DATE';
+       const dt=new Date(d), n=new Date();
+       const day=dt.toDateString()===n.toDateString()?'TODAY':
+         dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase();
+       return day+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); };
+     return CARD(`
+       <div class="fhdr">REMINDERS <span>${R.lists.length} LISTS &middot; ${R.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${R.total}<span>OPEN</span></div>
+           <div class="macct rOver"><span>OVERDUE</span><b>${R.overdue}</b></div>
+           <div class="macct rToday"><span>DUE TODAY</span><b>${R.today}</b></div>
+           <div class="macct"><span>LISTS</span><b>${R.lists.length}</b></div>
+         </div>
+         <div class="mlist">
+           ${R.items.length ? R.items.slice(0,6).map(r=>
+             `<div class="mrow new${r.overdue?' late':''}"><div class="mdot"></div>`+
+             `<div class="mwhen">${when(r.due)}</div>`+
+             `<div class="mlist" style="width:132px">${esc(r.list)}</div>`+
+             `<div class="msubj">${esc(r.title)}</div></div>`).join('')
+             : `<div class="mempty">NOTHING OPEN</div>`}
+         </div>
+       </div>
+       <div class="ffoot"><span>${R.overdue?'OVERDUE SHOWN FIRST':'NOTHING LATE'}</span>`+
+       `<span>APPLE REMINDERS &middot; LOCAL</span></div>`)}},
+
+  mail:{src:null,wide:true,
+   targets:{total:'.mbig',a0:'.macct:nth-of-type(1)',a1:'.macct:nth-of-type(2)'},
+   build:()=>{
+     const D=(typeof MAILDATA!=='undefined')?MAILDATA:{accounts:[],total:0,fetched:'—'};
+     const accts=(D.accounts||[]).slice();
+     if(typeof WORK!=='undefined')
+       accts.push({label:'WORK',unread:WORK.unread,items:WORK.items});
+     const rows=[];
+     accts.forEach(a=>(a.items||[]).forEach(it=>rows.push(it)));
+     rows.sort((x,y)=>(y.date||'').localeCompare(x.date||''));
+     const t=d=>{ if(!d)return ''; const dt=new Date(d); if(isNaN(dt))return '';
+       const now=new Date();
+       return dt.toDateString()===now.toDateString()
+         ? dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+         : dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); };
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     return CARD(`
+       <div class="fhdr">MAIL <span>${accts.length} ACCOUNTS &middot; ${D.fetched||'—'}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${(D.total||0)+((typeof WORK!=='undefined')?WORK.unread:0)}<span>NEW</span></div>
+           ${accts.map(a=>`<div class="macct${a.error?' err':''}"><span>${esc(a.label)}</span>`+
+             `<b>${a.error?'UNREACHABLE':(a.unread||0)}</b></div>`).join('')}
+         </div>
+         <div class="mlist">
+           ${rows.length ? rows.slice(0,6).map(r=>
+             `<div class="mrow${r.unread?' new':''}"><div class="mdot"></div>`+
+             `<div class="mfrom">${esc(r.from)}</div>`+
+             `<div class="msubj">${esc(r.subject)}</div>`+
+             `<div class="mtime">${t(r.date)}</div></div>`).join('')
+             : `<div class="mempty">NO RECENT MESSAGES</div>`}
+         </div>
+       </div>
+       <div class="ffoot"><span>${(D.total||0)?'UNREAD SHOWN FIRST':'INBOX CLEAR'}</span>`+
+       `<span>IMAP &middot; HEADERS ONLY</span></div>`)}},
+
+  traffic:{src:null,wide:true,
+   targets:{eta:'.teta',delay:'.tdelay',arrive:'.tarrive',dist:'.tdist',jam:'.tjam'},
+   after:card=>drawMap(card.querySelector('.tmapwrap'),trafficRoute),
+   build:()=>{const R=MAPDATA.routes[trafficRoute], dl=R.liveMin-R.freeMin;
+     return CARD(`
+     <div class="fhdr">ROUTE <span>HOME &rarr; ${R.label}</span></div>
+     <div class="tmain">
+       <div class="tstat">
+         <div class="teta">${R.liveMin}<span>MIN</span></div>
+         <div class="tsub">ARRIVE <b class="tarrive">${etaClock(R.liveMin)}</b></div><br>
+         <div class="tsub tdelay">${dl>0?'+'+dl+' MIN VS USUAL':'ON PAR WITH USUAL'}</div><br>
+         <div class="tsub tdist">${R.mi} MI &middot; ${R.freeMin} MIN TYPICAL</div>
+       </div>
+       <div class="tmapwrap"><canvas class="tmapc"></canvas><svg class="tmap"></svg></div>
+     </div>
+     <div class="ffoot"><span class="tjam">${jamPhrase(R)}</span>`+
+     `<span>MAPBOX LIVE &middot; ${MAPDATA.fetched||'—'}</span></div>`)}},
+
+  calendar:{src:'#pTL',wide:true,
+   targets:{today:'.mbig',next:'.mrow:first-child .msubj',total:'.cTot'},
+   build:()=>{let C=(typeof CAL!=='undefined')?CAL:null;
+     if(!C) return CARD('<div class="fhdr">SCHEDULE</div>'+
+       '<div class="mempty">NO DATA — RUN tools/events.py IN YOUR TERMINAL ONCE</div>');
+     if(typeof WORK!=='undefined'&&WORK.events&&WORK.events.length){
+       const now=new Date().toDateString();
+       const ev=C.events.concat(WORK.events.map(e=>({title:e.title,cal:'WORK',
+         start:e.start,allDay:e.allDay,today:new Date(e.start).toDateString()===now})))
+         .sort((a,b)=>a.start.localeCompare(b.start));
+       C={...C,events:ev,total:ev.length,today:ev.filter(x=>x.today).length,
+          cals:C.cals+1};
+     }
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const when=x=>{const d=new Date(x.start);
+       const day=x.today?'TODAY':d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+       return x.allDay?day:day+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})};
+     return CARD(`
+       <div class="fhdr">SCHEDULE <span>${C.cals} CALENDARS &middot; ${C.fetched}</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${C.today}<span>TODAY</span></div>
+           <div class="macct cTot"><span>NEXT 14 DAYS</span><b>${C.total}</b></div>
+           <div class="macct"><span>FLIGHTS</span><b>${(C.flights||[]).length}</b></div>
+           <div class="macct"><span>ICLOUD</span><b>EXCLUDED</b></div>
+         </div>
+         <div class="mlist">
+           ${C.events.length?C.events.slice(0,6).map(x=>
+             `<div class="mrow${x.today?' new':''}"><div class="mdot"></div>`+
+             `<div class="mwhen" style="width:118px">${when(x)}</div>`+
+             `<div class="mlist" style="width:110px">${esc(x.cal)}</div>`+
+             `<div class="msubj">${esc(x.title)}</div></div>`).join('')
+             :`<div class="mempty">NOTHING SCHEDULED</div>`}
+         </div>
+       </div>
+       <div class="ffoot"><span>${C.today?'TODAY SHOWN FIRST':'CLEAR TODAY'}</span>`+
+       `<span>EVENTKIT &middot; LOCAL</span></div>`)}},
+
+  flights:{src:null,wide:true,
+   targets:{next:'.mbig',fnum:'.mrow:first-child .tick',when:'.fWhen'},
+   build:()=>{const C=(typeof CAL!=='undefined')?CAL:null;
+     const F=(C&&C.flights)||[];
+     if(!F.length) return CARD('<div class="fhdr">FLIGHTS</div>'+
+       '<div class="mempty">NO FLIGHTS ON THE CALENDAR</div>');
+     const esc=x=>String(x||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+     const n=F[0], d=new Date(n.start);
+     const clock=d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+     const day=d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
+     return CARD(`
+       <div class="fhdr">FLIGHTS <span>FROM THE CALENDAR</span></div>
+       <div class="mmain">
+         <div class="mstat">
+           <div class="mbig">${n.inDays===0?'TODAY':n.inDays+'<span>DAYS</span>'}</div>
+           <div class="macct fWhen"><span>DEPART</span><b>${clock}</b></div>
+           <div class="macct"><span>ON</span><b>${day.slice(0,12)}</b></div>
+           <div class="macct"><span>BOOKED</span><b>${F.length}</b></div>
+         </div>
+         <div class="mlist">
+           ${F.map(f=>{const fd=new Date(f.start);
+             const st=(typeof FLIGHTSTATUS!=='undefined')&&
+               FLIGHTSTATUS.statuses[(f.fnum||'')+'_'+f.start.slice(0,10)];
+             const live=st?` &middot; ${esc(st.status)}`+
+               (st.gate?` &middot; GATE ${esc(st.gate)}`:'')+
+               (st.delayMin?` &middot; <span class="tjam">+${st.delayMin} MIN</span>`:''):'';
+             return `<div class="mrow new"><div class="mdot"></div>`+
+             `<div class="tick">${esc(f.fnum||'—')}</div>`+
+             `<div class="mwhen" style="width:130px">${fd.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase()} ${fd.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>`+
+             `<div class="msubj">${esc(f.title)}${live}</div></div>`}).join('')}
+         </div>
+       </div>
+       <div class="ffoot"><span>${(typeof FLIGHTSTATUS!=='undefined')&&Object.keys(FLIGHTSTATUS.statuses||{}).length?'LIVE STATUS &middot; AERODATABOX':'LIVE STATUS ARMS 48H BEFORE DEPARTURE'}</span>`+
+       `<span>SOURCE: AIRLINE EMAILS &rarr; CALENDAR</span></div>`)}},
+
+};
+
+/* ---- wireframe route map ----
+   Drawn from raw OpenStreetMap way geometry and a real routing result. Deliberately
+   NOT map tiles: a raster tile is a photograph, and a photograph behind two-way glass
+   is a glowing grey rectangle. Coordinates in, glowing lines out. */
+const ROADW =[1.7,1.2,.85,.6];         // by class: motorway/trunk, primary, secondary, tertiary
+const ROADO =[.62,.44,.29,.18];
+const JAMC  =['var(--hot)','var(--cy)','#ff6a4a','#ff2f14'];   // clear, light, slow, stopped
+const JAMW  =[3.3,3.3,4.3,5.1];
+
+/* Derived from the real congestion annotation. Mapbox does not give street names
+   without step-level data, so we describe the route honestly rather than naming a
+   highway we did not actually measure. */
+function jamPhrase(R){
+  const s=R.heavyShare||0, w=R.worst||0;
+  if(s>=25) return 'CONGESTED — '+s+'% OF ROUTE';
+  if(s>=8)  return 'SLOW IN PLACES — '+s+'% OF ROUTE';
+  if(w>=2)  return 'ONE SLOW STRETCH';
+  return 'RUNNING CLEAR';
+}
+function jamSpoken(R){
+  const s=R.heavyShare||0, w=R.worst||0;
+  if(s>=25) return 'heavily congested for about '+s+' percent of the way';
+  if(s>=8)  return 'slow in places, about '+s+' percent of the way';
+  if(w>=2)  return 'one slow stretch';
+  return 'running clear';
+}
+let trafficRoute='airport';
+function etaClock(min){const t=new Date(Date.now()+min*60000);
+  let h=t.getHours();const ap=h>=12?'PM':'AM';h=h%12||12;
+  return h+':'+String(t.getMinutes()).padStart(2,'0')+' '+ap}
+
+function drawMap(wrap,key){
+  if(!wrap||typeof MAPDATA==='undefined')return;
+  const RT=MAPDATA.routes[key||trafficRoute]; if(!RT)return;
+  const cv=wrap.querySelector('.tmapc'), svg=wrap.querySelector('.tmap');
+  const W=Math.round(wrap.clientWidth)||480, H=Math.round(wrap.clientHeight)||322;
+  const PAD=.10, dpr=Math.min(2,window.devicePixelRatio||1);
+
+  const mX=lng=>lng*Math.PI/180, mY=lat=>Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  RT.pts.forEach(p=>{const x=mX(p[1]),y=mY(p[0]);
+    x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)});
+  const px=(x1-x0)*PAD,py=(y1-y0)*PAD; x0-=px;x1+=px;y0-=py;y1+=py;
+  const k=Math.min(W/(x1-x0),H/(y1-y0));
+  const ox=(W-(x1-x0)*k)/2, oy=(H-(y1-y0)*k)/2;
+  const PX=lng=>(mX(lng)-x0)*k+ox, PY=lat=>H-((mY(lat)-y0)*k+oy);
+
+  /* The city is static, so it is rasterised once to a canvas. Putting ~14k road
+     ways in the DOM as <path> elements stalls the compositor outright — the whole
+     HUD drops to single-digit fps. Canvas draws the same geometry in a few ms and
+     costs nothing thereafter. Only the route stays in SVG, where it needs to be
+     for the stroke-dash draw-in. */
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  g.lineCap='round'; g.lineJoin='round'; g.strokeStyle='#57c6e4';
+  const M=90;                                       // cull margin
+  for(let c=3;c>=0;c--){
+    for(let pass=1;pass<2;pass++){
+      g.lineWidth=[2.0,1.45,1.0,.72][c];
+      g.globalAlpha=[.62,.44,.29,.18][c];
+      g.beginPath();
+      for(const r of MAPDATA.roads){
+        if(r[0]!==c) continue;
+        const pts=r[1]; let drew=false;
+        for(let i=0;i<pts.length;i++){
+          const X=PX(pts[i][1]), Y=PY(pts[i][0]);
+          if(!drew){ if(X<-M||X>W+M||Y<-M||Y>H+M){ if(i<pts.length-1) continue }
+                     g.moveTo(X,Y); drew=true }
+          else g.lineTo(X,Y);
+        }
+      }
+      g.stroke();
+    }
+  }
+  g.globalAlpha=1;
+
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.innerHTML='';
+  const gRoute=el('g'),gPins=el('g'); svg.append(gRoute,gPins);
+
+  const cg=RT.cong, R=RT.pts, runs=[]; let a=0;
+  for(let i=1;i<cg.length;i++) if(cg[i]!==cg[i-1]){runs.push({lvl:cg[i-1],a,b:i});a=i}
+  runs.push({lvl:cg[cg.length-1]??0,a,b:R.length-1});
+
+  const D=seg=>'M'+seg.map(p=>PX(p[1]).toFixed(1)+' '+PY(p[0]).toFixed(1)).join('L');
+  const paths=runs.map(r=>{
+    const e=el('path',{d:D(R.slice(r.a,r.b+1)),fill:'none',stroke:JAMC[r.lvl],
+      'stroke-width':JAMW[r.lvl],'stroke-linecap':'round','stroke-linejoin':'round'});
+    gRoute.appendChild(e); return {el:e,len:e.getTotalLength()||1};
+  });
+  gRoute.setAttribute('style','filter:drop-shadow(0 0 3px var(--g1)) drop-shadow(0 0 10px var(--g2))');
+
+  const pin=(lat,lng,label,right)=>{const x=PX(lng),y=PY(lat),gg=el('g',{opacity:0});
+    gg.appendChild(el('circle',{cx:x,cy:y,r:5,fill:'none',stroke:'var(--hot)','stroke-width':1.5}));
+    gg.appendChild(el('circle',{cx:x,cy:y,r:2,fill:'var(--hot)'}));
+    [[-10,-10,-10,-4],[-10,-10,-4,-10],[10,10,10,4],[10,10,4,10]].forEach(([a1,b1,a2,b2])=>
+      gg.appendChild(el('line',{x1:x+a1,y1:y+b1,x2:x+a2,y2:y+b2,stroke:'var(--hot)','stroke-width':1.3})));
+    const t=el('text',{x:x+(right?14:-14),y:y+4,fill:'var(--hot)','font-size':10,
+      'letter-spacing':1.8,'text-anchor':right?'start':'end'});
+    t.textContent=label; gg.appendChild(t); gPins.appendChild(gg); return gg};
+  const pO=pin(MAPDATA.home[0],MAPDATA.home[1],'HOME',true);
+  const pD=pin(RT.d[0],RT.d[1],RT.label,false);
+  gPins.setAttribute('style','filter:drop-shadow(0 0 4px var(--g1))');
+
+  // A full-route path, never drawn — it exists only to be sampled with
+  // getPointAtLength so the travelling dot follows the real geometry, including
+  // every curve, rather than lerping between congestion runs.
+  const full=el('path',{d:D(R),fill:'none',stroke:'none'});
+  svg.appendChild(full);
+  runDot(svg, full);
+
+  const total=paths.reduce((s,p)=>s+p.len,0); let cum=0;
+  paths.forEach(p=>{
+    p.el.style.strokeDasharray=p.len; p.el.style.strokeDashoffset=p.len;
+    p.el.style.transition=`stroke-dashoffset ${(p.len/total)*1900}ms linear ${(cum/total)*1900}ms`;
+    cum+=p.len;
+  });
+  pO.animate([{opacity:0},{opacity:1}],{duration:400,delay:100,fill:'forwards'});
+  pD.animate([{opacity:0},{opacity:1}],{duration:400,delay:1950,fill:'forwards'});
+  void svg.getBoundingClientRect();
+  setTimeout(()=>paths.forEach(p=>{p.el.style.strokeDashoffset=0}),16);
+}
+
+/* Bright dot running the route in the direction of travel: HOME first, since
+   Mapbox returns the geometry origin-first. Purely decorative, so it rides
+   requestAnimationFrame and simply pauses if the tab is hidden. */
+let dotRAF=null;
+const TRAVEL_MS=2400, TRAVEL_GAP=450, TAIL=12;
+function stopDot(){ if(dotRAF){cancelAnimationFrame(dotRAF);dotRAF=null} }
+function runDot(svg, full){
+  stopDot();
+  const L=full.getTotalLength(); if(!L) return;
+  const g=el('g',{style:'filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 14px var(--g1))'});
+  const tail=[];
+  for(let i=TAIL;i>0;i--){
+    const c=el('circle',{r:(1.4+3.2*(1-i/TAIL)).toFixed(2),fill:'#ffffff',
+      opacity:(0.05+0.32*(1-i/TAIL)).toFixed(3)});
+    g.appendChild(c); tail.push(c);
+  }
+  const head=el('circle',{r:5.4,fill:'#ffffff'});
+  g.appendChild(head); svg.appendChild(g);
+
+  const t0=performance.now()+1200;              // let the route finish drawing first
+  function step(now){
+    dotRAF=requestAnimationFrame(step);
+    const e=now-t0;
+    if(e<0){ g.setAttribute('opacity',0); return }
+    const cycle=e%(TRAVEL_MS+TRAVEL_GAP), t=cycle/TRAVEL_MS;
+    if(t>1){ g.setAttribute('opacity',0); return }
+    g.setAttribute('opacity', t<.04 ? (t/.04).toFixed(2) : t>.96 ? ((1-t)/.04).toFixed(2) : 1);
+    const set=(c,u)=>{const p=full.getPointAtLength(Math.max(0,Math.min(1,u))*L);
+      c.setAttribute('cx',p.x.toFixed(1)); c.setAttribute('cy',p.y.toFixed(1))};
+    set(head,t);
+    tail.forEach((c,i)=>set(c, t-(TAIL-i)*0.0055));
+  }
+  dotRAF=requestAnimationFrame(step);
+}
+
+/* Menu order is the order it spins through, so related things sit together. */
+const MENU=[
+  {k:'weather',   l:'WEATHER'},
+  {k:'daylight',  l:'DAYLIGHT'},
+  {k:'calendar',  l:'CALENDAR'},
+  {k:'flights',   l:'FLIGHTS'},
+  {k:'traffic',   l:'TRAFFIC'},
+  {k:'mail',      l:'MAIL'},
+  {k:'reminders', l:'TO DO'},
+  {k:'notes',     l:'NOTES',    soon:1},
+  {k:'timers',    l:'TIMERS',   soon:1},
+  {k:'signals',   l:'SIGNALS'},
+  {k:'auction',   l:'AUCTIONS'},
+  {k:'acquisition',l:'APPS'},
+  {k:'queues',    l:'PIPELINES'},
+  {k:'builds',    l:'BUILDS'},
+  {k:'appstore',  l:'APP STORE'},
+  {k:'music',     l:'MUSIC',    soon:1},
+  {k:'radar',     l:'RADAR'},
+  {k:'sky',       l:'SKY'},
+  {k:'onthisday', l:'ON THIS DAY'},
+  {k:'airspace',  l:'AIRSPACE'},
+  {k:'news',      l:'NEWS'},
+];
+// 4 copies: a spin lands one copy below the middle, and items late in the menu
+// then still have a full copy beneath them. With 3 copies the landing row for the
+// last few items sat at the reel's edge, so the window scrolled past the end of
+// the list into blank space — the menu visibly "ran out" mid-spin.
+const RO_H=34, RO_COPIES=4, RO_MID=1;   // copies give the reel runway to spin through
+let roloIdx=0;
+
+function roloBuild(){
+  const list=$('#roloList'); if(!list)return;
+  let html='';
+  for(let c=0;c<RO_COPIES;c++)
+    html+=MENU.map(m=>`<div class="roItem${m.soon?' soon':''}" data-k="${m.k}">`+
+      `<span class="rd"></span>${m.l}</div>`).join('');
+  list.innerHTML=html;
+  roloSet(0,false);
+  // No entrance animation: a hidden or backgrounded tab freezes animations at their
+  // first keyframe, and a fill:forwards animation stuck at 0 outranks the inline style.
+  // Same trap as the focus card. Visibility never rides on an animation.
+  $('#rolo').style.opacity='1';
+}
+
+function roloOffset(i){
+  // centre the item in the band: middle copy, minus half the visible height
+  return -( (RO_MID*MENU.length + i) * RO_H ) + (340/2 - RO_H/2);
+}
+
+function roloSet(i,animate){
+  const list=$('#roloList'); if(!list)return;
+  roloIdx=i;
+  list.style.transition = animate ? '' : 'none';
+  list.style.transform = `translate3d(0,${roloOffset(i)}px,0)`;
+  list.querySelectorAll('.roItem').forEach((el,n)=>
+    el.classList.toggle('sel', n % MENU.length === i));
+}
+
+function roloSpin(key, done){
+  const list=$('#roloList'); if(!list) { done&&done(); return }
+  let i=MENU.findIndex(m=>m.k===key);
+  if(i<0) i=MENU.findIndex(m=>m.k==='news');
+  if(i<0) i=0;
+
+  // always travel at least a full turn so it reads as a reel, not a jump
+  const from=roloIdx, dist=((i-from)+MENU.length)%MENU.length;
+  // A short hop gets a full extra revolution so it reads as a reel; a long hop is
+  // already most of a revolution and gets none — which also keeps the worst-case
+  // landing row inside the 4-copy reel, so the window never scrolls past the end.
+  const travel = dist + (dist < 8 ? MENU.length : 0);
+  const startY=roloOffset(from);
+  // Land exactly `travel` rows down — this is the target item one copy below the
+  // middle. The old formula added a stray (end-start) term, so the reel stopped up
+  // to 13 rows off and the cleanup snap yanked it into place in one frame: the
+  // visible stutter right as the card launched.
+  const via=startY-(travel*RO_H);
+
+  list.style.transition='none';
+  list.style.transform=`translate3d(0,${startY}px,0)`;
+  void list.offsetWidth;
+  list.classList.add('spinning');
+  list.style.transition='transform .95s cubic-bezier(.16,.86,.22,1.02)';
+  list.style.transform=`translate3d(0,${via}px,0)`;
+
+  setTimeout(()=>{
+    list.classList.remove('spinning');
+    list.querySelectorAll('.roItem').forEach((el,n)=>
+      el.classList.toggle('sel', n % MENU.length === i));
+  },620);
+  setTimeout(()=>{
+    // land on the equivalent item in the middle copy so it can always spin again
+    roloSet(i,false);
+    done&&done();
+  },970);
+}
+
+/* The selection band's screen rect — the point every focus card flies out of. */
+function roloBandRect(){
+  const r=$('#rolo'); if(!r) return null;
+  const b=r.getBoundingClientRect();
+  if(!b.width) return null;
+  const h=RO_H*(b.height/340);
+  return {left:b.left, width:b.width, top:b.top+b.height/2-h/2, height:h};
+}
+
+/* ---- radar renderer: grayscale echoes tinted into the HUD palette ----
+   Each frame is precomputed once (intensity -> cyan..amber..red ramp), then the
+   loop just blits. Home sits at the reticle; range rings at 50km steps. */
+let radarTimer=null, radarCache={};
+function stopRadar(){ if(radarTimer){clearInterval(radarTimer);radarTimer=null} }
+function tintFrame(img,S){
+  const c=document.createElement('canvas');c.width=c.height=S;
+  const g=c.getContext('2d');g.drawImage(img,0,0,S,S);
+  const d=g.getImageData(0,0,S,S),px=d.data;
+  // RainViewer scheme-0 grayscale maps dBZ across the byte range, so even
+  // drizzle sits bright; thresholds below are calibrated to real intensity:
+  // <10 dBZ noise, 10-35 light (cyan), 35-48 moderate (amber), 48+ heavy (red).
+  for(let i=0;i<px.length;i+=4){
+    const v=px[i];
+    if(v<86){px[i+3]=0;continue}                                  // < ~10 dBZ
+    if(v<136){px[i]=40;px[i+1]=190;px[i+2]=255;px[i+3]=45+(v-86)*1.4;}
+    else if(v<162){px[i]=255;px[i+1]=175;px[i+2]=50;px[i+3]=120+(v-136)*2;}
+    else{px[i]=255;px[i+1]=55;px[i+2]=30;px[i+3]=180;}
+  }
+  g.putImageData(d,0,0);return c;
+}
+function runRadar(card){
+  stopRadar(); radarCache={};
+  const cv=card.querySelector('.rcv'); if(!cv||typeof RADAR==='undefined')return;
+  const wrap=cv.parentElement, W=wrap.clientWidth||520, H=wrap.clientHeight||322;
+  const dpr=Math.min(2,devicePixelRatio||1);
+  cv.width=W*dpr;cv.height=H*dpr;
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const S=Math.max(W,H);            // cover, centred on home
+  const [hx,hy]=RADAR.homePx, k=S/RADAR.size;
+  const ox=W/2-hx*k, oy=H/2-hy*k;
+  const kmPx=S/RADAR.kmAcross;      // px per km
+  let i=0, loaded=0, imgs=RADAR.frames.map((f,n)=>{
+    const im=new Image();
+    im.onload=()=>{radarCache[n]=tintFrame(im,RADAR.size);loaded++};
+    im.src=f.file+'?x='+f.time; return im;});
+  function paint(){
+    const n=i%RADAR.frames.length;
+    if(!radarCache[n])return;
+    g.clearRect(0,0,W,H);
+    g.drawImage(radarCache[n],ox,oy,RADAR.size*k,RADAR.size*k);
+    // range rings + home reticle in HUD line-language
+    g.strokeStyle='rgba(124,226,255,.25)';g.lineWidth=1;
+    [50,100,150].forEach(km=>{g.beginPath();
+      g.arc(W/2,H/2,km*kmPx,0,Math.PI*2);g.stroke();});
+    g.strokeStyle='#d6f6ff';g.lineWidth=1.4;
+    g.beginPath();g.arc(W/2,H/2,5,0,Math.PI*2);g.stroke();
+    g.beginPath();g.moveTo(W/2-11,H/2);g.lineTo(W/2-4,H/2);
+    g.moveTo(W/2+4,H/2);g.lineTo(W/2+11,H/2);
+    g.moveTo(W/2,H/2-11);g.lineTo(W/2,H/2-4);
+    g.moveTo(W/2,H/2+4);g.lineTo(W/2,H/2+11);g.stroke();
+    const f=RADAR.frames[n], d=new Date(f.time*1000);
+    const b=card.querySelector('.rTime b');
+    if(b)b.textContent=d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+      +(f.nowcast?' FC':'');
+    i++;
+  }
+  radarTimer=setInterval(paint,600);
+}
+
+let isFocused=false;
+const glowFor=()=>isFocused?0:(state==='IDLE'?.5:.95);
+
+function enterFocus(kind){
+  const F=FOCUS[kind]; if(!F)return;
+  if(privacyOn&&PRIVATE_CARDS.has(kind)){setState('IDLE','PRIVATE MODE');return}
+  const src=F.src?$(F.src):null, card=$('#focusCard');
+  card.classList.toggle('wide',!!F.wide);
+  card.classList.toggle('huge',!!F.huge);
+  card.innerHTML=F.build();
+  card.style.visibility='visible';
+  card.style.transition='none'; card.style.transform='none'; card.style.opacity='0';
+  const cr=card.getBoundingClientRect();
+  // Fly out of the rolodex selection band. Rects are screen px but the card's
+  // translate happens inside the scaled stage, so divide by the stage scale or
+  // the card starts short of the band.
+  const sr=roloBandRect();
+  const sc=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s'))||1;
+  const dx=sr?((sr.left+sr.width/2)-(cr.left+cr.width/2))/sc:0;
+  const dy=sr?((sr.top+sr.height/2)-(cr.top+cr.height/2))/sc:0;
+  const k=sr?Math.max(.12, sr.width/cr.width):.28;
+  card.style.transform=`translate(${dx}px,${dy}px) scale(${k})`;
+  // Fully visible AT the band before it moves. The old 0->1 fade ran during the
+  // flight, so the card only became visible after it had already arrived — the
+  // journey was invisible and it read as "just appears in the centre".
+  card.style.opacity='1';
+  void card.offsetWidth;
+  setTimeout(()=>{
+    card.style.transition='transform .9s cubic-bezier(.3,.75,.25,1.04)';
+    card.style.transform='translate(0,0) scale(1)';
+    setTimeout(()=>card.querySelectorAll('.hbar i').forEach(i=>i.style.height=i.dataset.h+'%'),420);
+    if(F.after)setTimeout(()=>F.after(card),300);
+  },110);
+  if(src)src.classList.add('ghost');
+  $('#core').classList.add('focused');
+  isFocused=true; $('#glowcore').style.opacity=0;
+  RWt=272; WLt=54;                       // spokes migrate outward into a corona
+}
+
+function exitFocus(){
+  if(!isFocused)return;
+  stopDot(); stopRadar();
+  const card=$('#focusCard'), F=FOCUS[activeFocus], src=F.src?$(F.src):null;
+  const cr=card.getBoundingClientRect();
+  const sr=roloBandRect();
+  const sc=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s'))||1;
+  const dx=sr?((sr.left+sr.width/2)-(cr.left+cr.width/2))/sc:0;
+  const dy=sr?((sr.top+sr.height/2)-(cr.top+cr.height/2))/sc:0;
+  const k=sr?Math.max(.12, sr.width/cr.width):.28;
+  card.style.transition='transform .6s cubic-bezier(.55,0,.8,.45),opacity .16s ease .44s';
+  card.style.transform=`translate(${dx}px,${dy}px) scale(${k})`; card.style.opacity='0';
+  setTimeout(()=>{card.style.visibility='hidden';card.innerHTML=''},700);
+  card.querySelectorAll('.held').forEach(n=>n.classList.remove('held','pulsing'));
+  card.querySelectorAll('.hcol').forEach(c=>c.classList.remove('dim'));
+  if(src)src.classList.remove('ghost');
+  $('#core').classList.remove('focused');
+  isFocused=false; $('#glowcore').style.opacity=glowFor();
+  RWt=156; WLt=128;
+}
+let activeFocus=null;
+
+/* Fire a bloom surge on the on-screen datum being spoken.
+   In Phase 1 these fire off real TTS alignment timestamps instead of typing position. */
+function pulseTarget(key){
+  const F=FOCUS[activeFocus]; if(!F||!F.targets||!F.targets[key])return;
+  const spec=F.targets[key], sel=(typeof spec==='string')?spec:spec.sel;
+  const card=$('#focusCard'), node=card.querySelector(sel); if(!node)return;
+  node.classList.remove('pulsing'); void node.offsetWidth;
+  node.classList.add('pulsing','held');
+  node.addEventListener('animationend',()=>node.classList.remove('pulsing'),{once:true});
+
+  // A spoken figure that is drawn as a bar should re-draw itself, not just flash:
+  // the bar rebuilds from zero with an overshoot, its value surfaces, and the
+  // surrounding hours fall back so the one being talked about carries the eye.
+  if(spec.surge){
+    const col=node.closest('.hcol')||node, bar=col.querySelector('.hbar i');
+    card.querySelectorAll('.hcol').forEach(c=>{if(c!==col)c.classList.add('dim')});
+    const lbl=col.querySelector('.hp'); if(lbl)lbl.style.opacity='1';
+    if(bar){
+      bar.style.transition='none'; bar.style.height='0%';
+      void bar.offsetHeight;
+      setTimeout(()=>{
+        bar.style.transition='height .95s cubic-bezier(.18,1.55,.36,1)';
+        bar.style.height=bar.dataset.h+'%';
+      },16);
+    }
+  }
+}
+
+const SCRIPT=[
+ {q:"what's the weather",f:'weather',
+  a:()=>{const W=WEATHER;
+    const wet = (W.peak>=40) ? `Rain likely around [${W.peakAt}|hour] — [${W.peak} percent|precip].`
+              : (W.peak>=15) ? `A chance of rain around [${W.peakAt}|hour], [${W.peak} percent|precip].`
+              : `[Dry through the evening|precip].`;
+    const air = (W.aqi!=null && W.aqi>100)
+      ? ` Air quality is [${W.aqi}|temp], ${W.aqiLabel.toLowerCase()}.` : '';
+    return `[${W.temp} degrees|temp], feels like ${W.feels}. [${W.sky.toLowerCase()}|cond]. `+wet+
+           air+` Sunset at [${W.sunset}|sunset].`}},
+ {q:"what's on my calendar",f:'calendar',
+  a:()=>{const C=(typeof CAL!=='undefined')?CAL:null;
+    if(!C) return `The calendar has not been read yet.`;
+    if(!C.total) return `[Nothing scheduled|today] in the next two weeks.`;
+    const t=C.events[0];
+    return `[${C.today} today|today], ${C.total} in the next two weeks. `+
+      `Next is [${t.title}|next]${t.allDay?'':' at '+new Date(t.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}.`}},
+ {q:"how long until sunset",f:'daylight',
+  a:()=>{const W=WEATHER,[h,m]=W.sunset.split(':').map(Number);
+    const now=new Date(), s=new Date(now); s.setHours(h,m,0,0);
+    let mins=Math.round((s-now)/60000);
+    const pretty=mins<=0?'Sunset has passed':
+      `${Math.floor(mins/60)} hour${Math.floor(mins/60)===1?'':'s'} and ${mins%60} minutes from now`;
+    return `Sunset is at [${W.sunset}|sunset]. ${pretty}.`}},
+ {q:"how's traffic to the airport",f:'traffic',route:'airport',
+  a:()=>{const R=MAPDATA.routes[trafficRoute],dl=R.liveMin-R.freeMin;
+    return `[${R.liveMin} minutes|eta] to the ${R.label.toLowerCase()}, `+
+           `[${dl===0?'right on schedule':dl+' minutes slower'}|delay] than usual — [${jamSpoken(R)}|jam]. `+
+           `Leaving now puts you there at [${etaClock(R.liveMin)}|arrive].`}},
+ {q:"do I have any mail",f:'mail',
+  a:()=>{const D=(typeof MAILDATA!=='undefined')?MAILDATA:{total:0,accounts:[]};
+    const n=D.total||0, bad=(D.accounts||[]).filter(a=>a.error);
+    if(bad.length) return `[${n}|total] unread, though I could not reach `+
+      bad.map(a=>a.label.toLowerCase()).join(' or ')+`.`;
+    if(!n) return `[Nothing new|total]. Both inboxes are clear.`;
+    const per=(D.accounts||[]).filter(a=>a.unread).map(a=>`${a.unread} on ${a.label.toLowerCase()}`);
+    return `[${n} unread|total] — ${per.join(', ')}.`}},
+ {q:"what do I need to do",f:'reminders',
+  a:()=>{const R=(typeof REMINDERS!=='undefined')?REMINDERS:{total:0,overdue:0,today:0};
+    if(!R.total) return `[Nothing open|total]. Your lists are clear.`;
+    const bits=[];
+    if(R.overdue) bits.push(`[${R.overdue} overdue|overdue]`);
+    if(R.today)   bits.push(`[${R.today} due today|today]`);
+    const lead=`[${R.total} open|total] item${R.total===1?'':'s'}`;
+    return bits.length ? `${lead} — ${bits.join(' and ')}.`
+                       : `${lead}, none of them due yet.`}},
+ {q:"any signals today",f:'signals',
+  a:()=>{const S=(typeof SIGNALS!=='undefined')?SIGNALS:null;
+    if(!S) return `No scout data.`;
+    const pend=S.strategies.reduce((a,x)=>a+x.pending,0);
+    const lead=S.watching
+      ? `[${S.watching} on watch|watching] from the ${S.runDate.slice(5)} run — top is [${S.picks[0].ticker} at ${S.picks[0].prob} percent|top].`
+      : `[Nothing on watch|watching].`;
+    const age=(S.ageDays>2)?` Event data is [${S.ageDays} days old|run].`:'';
+    return `${lead} ${pend} pending events across five strategies.${age}`}},
+ {q:"anything at auction",f:'auction',
+  a:()=>{const A=(typeof SCOUTS!=='undefined')?SCOUTS.auction:null;
+    if(!A||A.error) return `The auction scout has not run.`;
+    const top=A.items[0];
+    return `[${A.total} tracts|total] in the last digest, [${A.nearby} within sixty miles|nearby].`+
+      (top?` Best priced is [${top.address.split(',')[0]}|top]`+
+        (top.upside!=null?`, about ${top.upside} percent under value.`:`.`):'')}},
+ {q:"any apps worth buying",f:'acquisition',
+  a:()=>{const Q=(typeof SCOUTS!=='undefined')?SCOUTS.acquisition:null;
+    if(!Q||Q.error) return `The acquisition scout has not run.`;
+    const t=Q.tiers||{}, top=Q.items[0];
+    return `[${Q.total} candidates|total] under thirty thousand — [${t.lookNow||0} worth looking at now|now].`+
+      (top?` Top is [${top.name}|top], ${top.ratings.toLocaleString()} ratings, dormant ${top.months} months.`:'')}},
+ {q:"is anything broken",f:'builds',
+  a:()=>{const C=(typeof CI!=='undefined')?CI:null;
+    if(!C) return `No build data.`;
+    if(!C.failing) return `[Nothing red|failing] — all ${C.passing} repositories are green.`;
+    const names=C.rows.filter(r=>r.state==='fail'||r.state==='error')
+      .slice(0,2).map(r=>r.repo).join(' and ');
+    return `[${C.failing} failing|failing] — ${names}. `+
+      `The rest of the ${C.all} are green.`}},
+ {q:"how are my apps doing",f:'appstore',
+  a:()=>{const A=(typeof APPSTORE!=='undefined')?APPSTORE:null;
+    if(!A) return `No App Store data.`;
+    if(!A.attention) return `[All ${A.live} apps are live|live], nothing pending.`;
+    const r=A.rows[0];
+    return `[${A.attention} need you|attention] — [${r.name}|top] has been `+
+      `${r.state.toLowerCase()} for ${r.days} days. ${A.live} others are live.`}},
+ {q:"when is my flight",f:'flights',
+  a:()=>{const T=((typeof CAL!=='undefined')&&CAL.trips)||[];
+    if(!T.length) return `No flights on the calendar.`;
+    const t=T[0], leg=t.legs[0], d=new Date(leg.start);
+    const when=t.inDays===0?'today':t.inDays===1?'tomorrow':'in '+t.inDays+' days';
+    const conn=t.legs.length>1?`, connecting to ${t.finalDest}`:'';
+    const more=T.length>1?` One more trip ${T[1].inDays-t.inDays<=1?'the next day':'after that'}.`:'';
+    return `[${leg.fnum||'Your flight'} ${when}|next] at `+
+      `[${d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}|when]${conn}.${more}`}},
+ {q:"how are the pipelines",f:'queues',
+  a:()=>{const Q=(typeof QUEUES!=='undefined')?QUEUES:null;
+    if(!Q) return `No pipeline data.`;
+    if(!Q.broken&&!Q.waiting) return `[All ${Q.rows.length} pipelines posting|broken] on schedule.`;
+    const bad=Q.rows.filter(r=>r.state==='broken').map(r=>r.name.toLowerCase());
+    let out=Q.broken?`[${Q.broken} broken|broken] — ${bad.join(' and ')}. `:'';
+    if(Q.waiting) out+=`[${Q.waiting} posts waiting on you|waiting].`;
+    return out.trim()}},
+ {q:"what happened on this day",f:'onthisday',
+  a:()=>{const O=(typeof OTD!=='undefined')?OTD:null;
+    if(!O||!O.total) return `Nothing from this date in your ledger yet — it accumulates.`;
+    return `[${O.total} thing${O.total>1?'s':''}|count] — [${O.events[0].text}|top].`}},
+ {q:"anything in the sky tonight",f:'sky',
+  a:()=>{const S=(typeof SKY!=='undefined')?SKY:null;
+    if(!S) return `No sky data.`;
+    const P=S.passes||[], L=S.launches||[];
+    let out=P.length?`[${P.length} visible ISS pass${P.length>1?'es':''}|next] — first at [${P[0].peak}|pass], ${P[0].maxElev} degrees up. `
+                    :`[No visible ISS passes|next] the next two nights. `;
+    if(L.length){const d=new Date(L[0].net+'Z');
+      out+=`Next launch: ${L[0].name.split('|').pop().trim()}, ${d.toLocaleDateString('en-US',{weekday:'long'})}.`}
+    return out.trim()}},
+ {q:"is rain coming",f:'radar',
+  a:()=>{const R=(typeof RADAR!=='undefined')?RADAR:null;
+    const W=(typeof WEATHER!=='undefined')?WEATHER:null;
+    if(!R) return `No radar data.`;
+    if(!R.wet) return `[Radar is clear|state] for a couple hundred kilometres around.`;
+    const pk=W&&W.peak?` The forecast peak is [${W.peak} percent around ${W.peakAt}|time].`:'';
+    return `[Echoes on the radar|state] within ${R.kmAcross} kilometres — watch the loop.${pk}`}},
+ {q:"what's overhead",f:'airspace',
+  a:()=>{const A=(typeof AIRCRAFT!=='undefined')?AIRCRAFT:null;
+    if(!A) return `No airspace data.`;
+    if(!A.airborne) return `[Nothing airborne|count] within thirty kilometres.`;
+    const p=A.planes.find(x=>!x.ground);
+    return `[${A.airborne} aircraft|count] airborne nearby — closest is [${p.call}|top], `+
+      `${p.km} kilometres out at ${p.alt||'unknown'} metres.`}},
+ {q:"any news worth hearing",f:'news',
+  a:()=>{const N=(typeof NEWS!=='undefined')?NEWS:null;
+    if(!N||!N.rows.length) return `No feeds reachable right now.`;
+    const top=N.rows[0];
+    return `[${N.rows.length} headlines|count] across ${N.ok} sources. `+
+      `Leading: [${top.title}|top] — ${top.src==='HN'?'Hacker News':top.src.toLowerCase()}.`}}
+];
+const TAGS=['WEATHER','CALENDAR','SUNSET','TRAFFIC','MAIL','TO DO','SIGNALS','AUCTIONS','APPS','BUILDS','APP STORE','FLIGHTS','PIPELINES','RADAR','SKY','LEDGER','AIRSPACE','NEWS'];
+let idx=0,busy=false;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function runTurn(){if(busy)return;busy=true;
+  const t=SCRIPT[idx++%SCRIPT.length],t0=performance.now();
+  $('#respTxt').textContent='';$('#respRule').style.width='0';
+  setState('WAKE');await wait(520);
+  setState('LISTENING','"'+t.q.toUpperCase()+'"');await wait(1750);
+  setState('THINKING','LOCATING');
+  roloSpin(t.f||'news');
+  await wait(1000);
+  $('#lat').textContent=(0.78+Math.random()*0.22).toFixed(2)+'s';
+  if(t.route)trafficRoute=t.route;
+  if(t.f){activeFocus=t.f;enterFocus(t.f);await wait(1050)}
+  setState('SPEAKING','');
+  await new Promise(r=>say(typeof t.a==='function'?t.a():t.a,r));
+  await wait(2600);
+  if(t.f)exitFocus();
+  setState('IDLE');busy=false}
+
+/* ---- clock + meters ---- */
+function tickClock(){const d=new Date();let h=d.getHours();const ap=h>=12?'PM':'AM';h=h%12||12;
+  $('#clock').innerHTML=`${h}:${String(d.getMinutes()).padStart(2,'0')}<small>${ap}</small>`;
+  $('#date').textContent=d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}).toUpperCase()}
+const SEGS=22;
+$$('.track').forEach(t=>{for(let i=0;i<SEGS;i++){const s=document.createElement('div');s.className='seg';t.appendChild(s)}});
+function tickMeters(){$$('.meter').forEach((m,i)=>{
+  const base=[46,62,24,88][i],v=Math.max(4,Math.min(99,base+(Math.random()*20-10)));
+  const lit=Math.round(v/100*SEGS);
+  [...m.querySelectorAll('.seg')].forEach((s,j)=>s.classList.toggle('lit',j<lit));
+  m.querySelector('.m-v').textContent=Math.round(v)+'%'})}
+
+/* ---- boot ---- */
+const BOOT=[['A.L.I.C.E. &mdash; ATTENTIVE LOCAL INTELLIGENCE &amp; CONCIERGE ENGINE',''],
+  ['INITIALISING CORE','OK'],['MOUNTING SENSOR ARRAY','OK'],
+  ['CALIBRATING AUDIO INPUT','OK'],['LOADING WAKE WORD MODEL','OK'],
+  ['ESTABLISHING UPLINK','OK'],['ALL SYSTEMS','ONLINE']];
+async function boot(){const b=$('#boot');
+  $('#core').style.opacity=0;$('#core').style.transition='opacity 1.3s';
+  for(const[t,ok]of BOOT){const d=document.createElement('div');
+    d.innerHTML=`${t} <span class="ok">${ok}</span>`;b.appendChild(d);
+    d.animate([{opacity:0,transform:'translateX(-10px)'},{opacity:1,transform:'none'}],{duration:250,fill:'forwards'});
+    await wait(320)}
+  await wait(560);b.animate([{opacity:1},{opacity:0}],{duration:560,fill:'forwards'});
+  await wait(480);b.style.display='none';$('#core').style.opacity=1;
+  ['#pTL','#pTR','#pBL','#pBR'].forEach((s,i)=>setTimeout(()=>$(s).classList.add('on'),i*170));
+  setState('IDLE');const w=$('#sweep');w.classList.add('sweeping');
+  await wait(1300);$('#hint').style.opacity=.5}
+
+/* ---- live microphone link ----
+   The service owns the mic; this page only renders what it is told. When the socket
+   is up the spoke burst follows real room audio, and AUDIO IN reads LIVE. With no
+   socket the page falls back to its own synthetic motion, so it still demos alone. */
+let micLive=false, micLevel=0, micPeak=0, micSock=null, micRetry=null;
+function connectVoice(){
+  try{ micSock=new WebSocket('ws://127.0.0.1:8765') }catch(e){ return scheduleVoice() }
+  micSock.onopen=()=>{ micLive=true; clearTimeout(micRetry);
+    const v=document.querySelector('#audioIn'); if(v){v.textContent='LIVE';v.classList.add('a')} };
+  micSock.onmessage=e=>{ let m; try{m=JSON.parse(e.data)}catch(_){return}
+    if(m.t==='level'){ micLevel=m.v; micPeak=m.p }
+    else if(m.t==='state'){ setState(m.s, m.sub) }
+    else if(m.t==='heard'){
+      // show the transcription under the core so a misheard command is obvious
+      $('#stateSub').textContent='"'+m.text.toUpperCase()+'"';
+      $('#lat').textContent=m.took.toFixed(2)+'s';
+    }
+    else if(m.t==='say'){ busy=true; say(m.text,()=>{busy=false}) }
+    else if(m.t==='answer'){
+      // a real voice turn: same choreography as the demo script, driven by the service
+      busy=true;
+      const go=async()=>{
+        setState('THINKING','LOCATING');
+        roloSpin(m.focus||'news');
+        await new Promise(r=>setTimeout(r,1000));
+        if(m.focus&&FOCUS[m.focus]){
+          if(m.focus==='traffic')trafficRoute=trafficRoute||'airport';
+          activeFocus=m.focus; enterFocus(m.focus);
+          await new Promise(r=>setTimeout(r,1050));
+        }
+        setState('SPEAKING','');
+        say(m.speech,()=>{});
+        // the service flips us back to IDLE when the voice stops; the card
+        // lingers a beat after that
+        const un=setInterval(()=>{ if(state==='IDLE'){clearInterval(un);
+          setTimeout(()=>{if(state==='IDLE'){exitFocus()}},2500); busy=false} },400);
+      };
+      go();
+    } };
+  micSock.onclose=()=>{ micLive=false; micLevel=0;
+    const v=document.querySelector('#audioIn'); if(v){v.textContent='ARMED';v.classList.remove('a')}
+    scheduleVoice() };
+  micSock.onerror=()=>{ try{micSock.close()}catch(_){} };
+}
+function scheduleVoice(){ clearTimeout(micRetry); micRetry=setTimeout(connectVoice,3000) }
+connectVoice();
+
+/* Scale the design canvas to the display.
+   Guarded: a window that reports 0x0 — hidden tab, minimised, or a monitor that
+   hasn't finished initialising at boot — would otherwise scale the whole HUD to
+   nothing and leave it there, since fit() only re-ran on resize. A wall mirror
+   would show a black screen with everything behind it running fine. */
+function fit(){
+  const w = innerWidth  || document.documentElement.clientWidth  || 0;
+  const h = innerHeight || document.documentElement.clientHeight || 0;
+  if (w < 50 || h < 50) { setTimeout(fit, 250); return }   // no viewport yet — retry
+  const s = Math.max(0.1, Math.min(w / 1600, h / 1000));
+  document.documentElement.style.setProperty('--s', s.toFixed(4));
+}
+fit();
+addEventListener('resize', fit);
+
+/* ---- night dimming ----
+   A mirror is a lamp in a dark hallway if it runs at full brightness all night.
+   Anchored to the real sunrise/sunset from the weather data rather than fixed
+   clock hours, so it tracks the season instead of drifting out of step. */
+const DIM_DAY = 1.0, DIM_NIGHT = 0.58, DIM_FADE = 45;   // minutes of twilight ramp
+// BOOST over-drives the filter past 1.0 for use behind two-way glass, which eats
+// roughly half the light. Mid-tone glows amplify toward white; the near-white
+// cores clip, which behind glass is exactly what you want.
+const DIM_BOOST = 1.5;
+// Default is FULL per Simon: auto-dimming stays off until the physical build,
+// when the glass is in front of the panel and the night level can be tuned for real.
+let dimMode = 'full';                        // 'auto' | 'full' | 'boost' | 'night'
+function dimLevel(now){
+  const W = (typeof WEATHER!=='undefined') ? WEATHER : null;
+  if(!W || !W.sunrise || !W.sunset) return DIM_DAY;
+  const mins = t => { const [h,m] = t.split(':').map(Number); return h*60+m };
+  const n = now.getHours()*60 + now.getMinutes();
+  const up = mins(W.sunrise), down = mins(W.sunset);
+  if(n >= up + DIM_FADE && n <= down - DIM_FADE) return DIM_DAY;      // full day
+  if(n <= up - DIM_FADE || n >= down + DIM_FADE)  return DIM_NIGHT;   // full night
+  const t = (n < up) ? (n - (up - DIM_FADE)) / (2*DIM_FADE)           // dawn ramp
+                     : 1 - (n - (down - DIM_FADE)) / (2*DIM_FADE);    // dusk ramp
+  return DIM_NIGHT + (DIM_DAY - DIM_NIGHT) * Math.max(0, Math.min(1, t));
+}
+function applyDim(){
+  const v = dimMode==='full' ? DIM_DAY
+          : dimMode==='boost' ? DIM_BOOST
+          : dimMode==='night' ? DIM_NIGHT
+          : dimLevel(new Date());
+  document.documentElement.style.setProperty('--dim-level', v.toFixed(3));
+  document.documentElement.style.setProperty('--sat-level', v>1 ? '1.15' : '1');
+  const e=$('#dimRow'); if(e) e.textContent = dimMode.toUpperCase()
+    + (dimMode==='auto' ? ' '+Math.round(v*100)+'%' : '');
+}
+applyDim(); setInterval(applyDim, 60000);
+
+/* ---- burn-in protection ----
+   This HUD is nearly static for hours at a time, which is exactly what burns a
+   panel. Drift the whole stage a few pixels on a slow cycle; imperceptible while
+   you watch it, but no pixel holds the same content all day. */
+const DRIFT_PX = 8, DRIFT_MIN = 7;
+function drift(){
+  const a = (Date.now() / (DRIFT_MIN*60000)) % (Math.PI*2);
+  const x = Math.cos(a) * DRIFT_PX, y = Math.sin(a*0.7) * DRIFT_PX;
+  document.documentElement.style.setProperty('--drift-x', x.toFixed(1)+'px');
+  document.documentElement.style.setProperty('--drift-y', y.toFixed(1)+'px');
+}
+drift(); setInterval(drift, 30000);
+addEventListener('visibilitychange', fit);   // waking from a hidden state re-measures
+
+if(typeof STATUS!=='undefined'){
+  const e=$('#dataOk');
+  if(e){
+    const bad=STATUS.sources.filter(x=>x.stale||x.missing);
+    if(bad.length){ e.textContent=bad.length+' STALE'; e.classList.add('a');
+      e.title=bad.map(x=>x.name).join(', '); }
+    else { e.textContent='CURRENT'; e.classList.remove('a'); }
+  }
+}
+
+if(typeof WEATHER!=='undefined'){
+  const W=WEATHER, q=(id,v)=>{const e=$(id); if(e)e.textContent=v};
+  q('#wTemp',W.temp+'\u00B0F'); q('#wFeels',W.feels+'\u00B0F'); q('#wSky',W.sky);
+  q('#wSunset',W.sunset);
+  if(W.aqi!=null){
+    const e=$('#wAqi');
+    e.textContent=W.aqi+' '+(W.aqiLabel==='SENSITIVE GROUPS'?'SENS':W.aqiLabel.split(' ')[0]);
+    e.classList.toggle('a', W.aqi>100);   // amber once it matters to breathe
+  }
+  q('#wPeakK','PRECIP '+(W.peakClock||'')); q('#wPeak',(W.peak||0)+'%');
+  $('#loc').textContent = W.place;
+}
+
+(()=>{const missing=[...new Set(SCRIPT.map(t=>t.f).filter(f=>f&&!FOCUS[f]))];
+  if(missing.length){
+    console.error('FOCUS cards missing:',missing);
+    const b=document.createElement('div');
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99;background:#ff2f14;'+
+      'color:#000;font:12px/1.6 monospace;padding:6px 12px;letter-spacing:.1em';
+    b.textContent='BUILD ERROR — focus cards missing: '+missing.join(', ');
+    document.body.appendChild(b);
+  }})();
+
+roloBuild();
+
+// persona from config (via personadata.js) — name, acronym, wake phrase, place
+if(typeof PERSONA!=='undefined'){
+  const q=(sel,v)=>{const e=document.querySelector(sel); if(e&&v)e.textContent=v};
+  const dots=PERSONA.name.split('').join('.')+'.';
+  q('#wordmark .wm', dots);
+  q('#wordmark .wms', PERSONA.acronym);
+  q('#pTL .hdr', dots+' · SYSTEM');
+  q('#loc', PERSONA.place);
+  document.title=PERSONA.name;
+  const ww=document.querySelector('#pTL .row .v.a'); if(ww)ww.textContent=PERSONA.wake;
+}
+
+/* ---- timeline rail ---- */
+function tlGather(){
+  const now=new Date(), out=[];
+  const add=(d,lab,priv)=>{ if(!d||isNaN(d))return;
+    const h=(d-now)/36e5; if(h<-0.2||h>24)return;
+    if(priv&&privacyOn)return;
+    out.push({d,lab}); };
+  const today=t=>{ if(!t)return null; const[hh,mm]=t.split(':').map(Number);
+    const d=new Date(now); d.setHours(hh,mm,0,0);
+    if(d<now)d.setDate(d.getDate()+1); return d; };
+  if(typeof WEATHER!=='undefined'){
+    add(today(WEATHER.sunset),'SUNSET');
+    add(today(WEATHER.sunrise),'SUNRISE');
+    if(WEATHER.peak>=25&&WEATHER.peakClock)add(today(WEATHER.peakClock),'RAIN '+WEATHER.peak+'%');
+  }
+  if(typeof CAL!=='undefined'){
+    (CAL.events||[]).filter(e=>!e.allDay).slice(0,4).forEach(e=>
+      add(new Date(e.start),e.title.toUpperCase().slice(0,14),true));
+    (CAL.flights||[]).slice(0,2).forEach(f=>
+      add(new Date(f.start),(f.fnum||'FLIGHT'),true));
+  }
+  if(typeof SKY!=='undefined'){
+    (SKY.passes||[]).slice(0,1).forEach(p=>add(new Date(p.start),'ISS PASS'));
+    (SKY.launches||[]).slice(0,1).forEach(l=>add(new Date(l.net+'Z'),'LAUNCH'));
+  }
+  const seen=new Set();
+  return out.filter(x=>{const k=x.lab+x.d.getTime();
+    if(seen.has(k))return false; seen.add(k); return true;})
+    .sort((a,b)=>a.d-b.d).slice(0,7);
+}
+function tlDraw(){
+  const box=$('#tline'); if(!box)return;
+  box.querySelectorAll('.tl-item').forEach(e=>e.remove());
+  const items=tlGather(), GAP=52;
+  // compact stack: the rail is only as tall as its contents — three events make
+  // a tight cluster, not three dots lost on a full-height line
+  const rail=box.querySelector('.tl-rail');
+  rail.style.height=items.length?((items.length-1)*GAP+18)+'px':'0';
+  box.style.display=items.length?'':'none';
+  items.forEach((x,i)=>{
+    const el=document.createElement('div');
+    el.className='tl-item'+(i===0?' next':'');
+    el.style.top=(30+i*GAP)+'px';
+    const hh=x.d.getHours()%12||12, ap=x.d.getHours()>=12?'P':'A';
+    el.innerHTML=`<span class="lab">${x.lab.replace(/[&<>]/g,'')}</span>`+
+      `<span class="tim">${hh}:${String(x.d.getMinutes()).padStart(2,'0')}${ap}</span>`+
+      `<span class="nd"></span>`;
+    box.appendChild(el);
+  });
+}
+tlDraw(); setInterval(tlDraw,60000);
+
+/* ---- airspace contacts: real aircraft as blips on the compass ring ----
+   Bearing from home maps to ring angle (north = up). Refreshes from the data
+   file each minute; the daemon refetches OpenSky every ten. */
+function drawContacts(){
+  const g=document.getElementById('contacts');
+  if(!g||typeof AIRCRAFT==='undefined')return;
+  g.innerHTML='';
+  const R=386;
+  (AIRCRAFT.planes||[]).filter(p=>!p.ground).slice(0,6).forEach(p=>{
+    const a=(p.brg-90)*Math.PI/180;
+    const x=400+Math.cos(a)*R, y=400+Math.sin(a)*R;
+    const near=Math.max(0,1-p.km/35);
+    const dot=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.setAttribute('r',3.2);
+    dot.setAttribute('fill','var(--hot)');dot.setAttribute('opacity',(.35+near*.6).toFixed(2));
+    dot.style.filter='drop-shadow(0 0 4px var(--g1))';
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x+(x>400?8:-8));t.setAttribute('y',y+3);
+    t.setAttribute('fill','var(--cy2)');t.setAttribute('font-size','9');
+    t.setAttribute('letter-spacing','1.2');
+    t.setAttribute('text-anchor',x>400?'start':'end');
+    t.setAttribute('opacity',(.3+near*.5).toFixed(2));
+    t.textContent=p.call;
+    g.append(dot,t);
+  });
+}
+drawContacts();
+setInterval(async()=>{
+  try{const r=await fetch('aircraftdata.js?x='+Date.now(),{cache:'no-store'});
+    const m=(await r.text()).match(/=\s*(\{.*\});/s);
+    if(m){window.AIRCRAFT=JSON.parse(m[1]);drawContacts()}}catch(_){}
+},60000);
+
+/* ---- phone remote ----
+   The control server writes one command at a time into controldata.js; the page
+   polls it and applies each seq exactly once. Polling a static file keeps the
+   LAN-facing server completely decoupled from the page — nothing to probe. */
+/* Privacy mode: guests see an impressive mirror, not Simon's life. Private
+   cards refuse to open and their reel entries dim; toggled from the phone. */
+let privacyOn=false;
+const PRIVATE_CARDS=new Set(['mail','reminders','calendar','flights','signals',
+  'appstore','queues','onthisday','acquisition','auction','builds']);
+function setPrivacy(on){
+  privacyOn=on;
+  document.querySelectorAll('#roloList .roItem').forEach(el=>{
+    const k=el.dataset.k;
+    el.style.opacity=(on&&PRIVATE_CARDS.has(k))?'.12':'';
+  });
+  const v=$('#audioIn');
+  if(on&&isFocused&&PRIVATE_CARDS.has(activeFocus)){busy=false;exitFocus();setState('IDLE')}
+  tlDraw();
+}
+
+let ctlSeq=0;
+async function pollControl(){
+  try{
+    const r=await fetch('controldata.js?x='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return;
+    const m=(await r.text()).match(/=\s*(\{.*\});/);
+    if(!m)return;
+    const c=JSON.parse(m[1]);
+    if(!c.seq||c.seq<=ctlSeq)return;
+    ctlSeq=c.seq;
+    if(c.k==='dim'){dimMode=c.v;applyDim()}
+    else if(c.k==='palette'){document.documentElement.dataset.pal=c.v==='red'?'red':'cyan'}
+    else if(c.k==='demo'){c.v==='on'?demoLoop():(demoOn=false)}
+    else if(c.k==='privacy'){setPrivacy(c.v==='on')}
+    else if(c.k==='presence'){
+      // radar says the room emptied or someone walked up
+      if(c.v==='off'){document.documentElement.style.setProperty('--dim-level','0.05');
+        demoOn=false;}
+      else{applyDim();
+        const w=$('#sweep');w.classList.remove('sweeping');void w.offsetWidth;
+        w.classList.add('sweeping');}
+    }
+    else if(c.k==='show'){
+      if(c.v==='none'){busy=false;exitFocus();setState('IDLE')}
+      else if(FOCUS[c.v]){busy=false;const t=SCRIPT.find(x=>x.f===c.v);
+        if(t){idx=SCRIPT.indexOf(t);runTurn()}
+        else{activeFocus=c.v;enterFocus(c.v)}}
+    }
+  }catch(_){}
+}
+setInterval(pollControl,3000);
+// on load, swallow any stale command left from a previous session
+fetch('controldata.js?x='+Date.now(),{cache:'no-store'}).then(r=>r.text())
+  .then(t=>{const m=t.match(/"seq":\s*(\d+)/); if(m)ctlSeq=+m[1]}).catch(()=>{});
+
+(function tape(){
+  const el=$('#tapeIn'); if(!el||typeof TICKER==='undefined'||!TICKER.rows.length)return;
+  const cell=r=>`<span class="tk"><span class="s">${r.sym}</span>`+
+    `<span class="p">${r.px.toLocaleString()}</span>`+
+    `<span class="c ${r.chg>=0?'up':'dn'}">${r.chg>=0?'+':''}${r.chg.toFixed(2)}%</span></span>`;
+  const half=TICKER.rows.map(cell).join('');
+  el.innerHTML=half+half;                 // two copies; the loop scrolls exactly one
+})();
+
+// dev scaffolding is invisible on the real mirror: kiosk.sh appends ?kiosk
+if(/kiosk/.test(location.search)) $('#hint').style.display='none';
+
+$('#hint').innerHTML = SCRIPT.map((t,i)=>`<b>${i+1}</b> ${TAGS[i]||''}`).join(' &nbsp;·&nbsp; ')
+  + ' &nbsp;&nbsp;|&nbsp;&nbsp; <b>SPACE</b> NEXT &nbsp;·&nbsp; <b>D</b> LOOP &nbsp;·&nbsp; <b>C</b> PALETTE &nbsp;·&nbsp; <b>B</b> BRIGHTNESS';
+
+tickClock();setInterval(tickClock,1000);
+tickMeters();setInterval(tickMeters,2000);
+/* demo loop: cycles the scripted questions unattended. ?demo in the URL, or press D. */
+let demoOn=false;
+async function demoLoop(){
+  if(demoOn)return; demoOn=true;
+  await wait(1400);
+  while(demoOn){ await runTurn(); await wait(3000) }
+}
+requestAnimationFrame(frame);
+boot().then(()=>{ if(/demo/.test(location.search)) demoLoop() });
+let keyBuf='',keyTimer=null;
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();runTurn()}
+  if(/^[0-9]$/.test(e.key)){
+    // Two-digit jump. A digit commits immediately unless it could be the prefix of
+    // a valid higher number (e.g. "1" when questions 10+ exist), in which case it
+    // waits briefly for a second keystroke — so "11" is one question, not 1 twice.
+    keyBuf+=e.key; clearTimeout(keyTimer);
+    const n=parseInt(keyBuf,10);
+    const couldExtend = keyBuf.length<2 && n*10<=SCRIPT.length;
+    const commit=()=>{const v=parseInt(keyBuf,10); keyBuf='';
+      if(v>=1 && v<=SCRIPT.length){idx=v-1;runTurn()}};
+    if(couldExtend) keyTimer=setTimeout(commit,650);
+    else commit();
+  }
+  if(e.key==='c'||e.key==='C'){const h=document.documentElement;
+    h.dataset.pal=h.dataset.pal==='red'?'cyan':'red'}
+  if(e.key==='d'||e.key==='D'){demoOn?demoOn=false:demoLoop()}
+  if(e.key==='h'||e.key==='H'){const h=$('#hint');
+    h.style.display=h.style.display==='none'?'':'none'}
+  if(e.key==='b'||e.key==='B'){
+    dimMode = dimMode==='auto' ? 'full'
+            : dimMode==='full' ? 'boost'
+            : dimMode==='boost' ? 'night' : 'auto';
+    applyDim();
+  }});
+addEventListener('click',runTurn);
+</script>

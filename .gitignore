@@ -1,0 +1,40 @@
+# PRIVATE — identifies where the mirror lives, or carries credentials/personal data.
+# NOTE: git does not support trailing comments on pattern lines; keep patterns bare.
+
+# location + credentials
+config.local.js
+config.local.json
+phone-remote-url.txt
+
+# generated data (mapdata/route-preview are road networks centred on home)
+mapdata.js
+route-preview.svg
+maildata.js
+weatherdata.js
+remindersdata.js
+calendardata.js
+signalsdata.js
+scoutsdata.js
+cidata.js
+appstoredata.js
+statusdata.js
+tickerdata.js
+queuedata.js
+newsdata.js
+flightdata.js
+workdata.js
+controldata.js
+.flights-state.json
+
+# local state
+.cache/
+.chrome-kiosk/
+__pycache__/
+*.pyc
+index.html.bak
+aircraftdata.js
+radardata.js
+radar/
+skydata.js
+onthisdaydata.js
+personadata.js

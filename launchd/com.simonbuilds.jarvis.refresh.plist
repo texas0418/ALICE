@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.simonbuilds.jarvis.refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/myfuckingmacbookair/.venvs/jarvis/bin/python</string>
+    <string>/Users/myfuckingmacbookair/Documents/GitHub/jarvis-mirror/tools/refresh.py</string>
+  </array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+  <key>WorkingDirectory</key><string>/Users/myfuckingmacbookair/Documents/GitHub/jarvis-mirror</string>
+  <key>StandardOutPath</key><string>/Users/myfuckingmacbookair/Library/Logs/jarvis-refresh.log</string>
+  <key>StandardErrorPath</key><string>/Users/myfuckingmacbookair/Library/Logs/jarvis-refresh.log</string>
+  <key>ProcessType</key><string>Background</string>
+</dict>
+</plist>

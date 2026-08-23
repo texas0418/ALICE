@@ -1,0 +1,69 @@
+{
+  "persona": {
+    "name": "ALICE",
+    "acronym": "ATTENTIVE LOCAL INTELLIGENCE & CONCIERGE ENGINE",
+    "owner": "Your name",
+    "voice": "Flo",
+    "wake_model": "hey_jarvis"
+  },
+  "home": {
+    "lat": 0.0,
+    "lng": 0.0,
+    "label": "HOME",
+    "place": "YOUR TOWN \u00b7 ST",
+    "tz": "America/New_York"
+  },
+  "destinations": [
+    {
+      "key": "airport",
+      "label": "AIRPORT",
+      "lat": 0.0,
+      "lng": 0.0
+    },
+    {
+      "key": "downtown",
+      "label": "DOWNTOWN",
+      "lat": 0.0,
+      "lng": 0.0
+    }
+  ],
+  "mail": [
+    {
+      "address": "you@example.com",
+      "host": "mail.example.com",
+      "port": 993,
+      "label": "PERSONAL"
+    }
+  ],
+  "news": [
+    {
+      "label": "BBC",
+      "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
+    },
+    {
+      "label": "HN",
+      "url": "https://news.ycombinator.com/rss"
+    }
+  ],
+  "brain": {
+    "provider": "anthropic",
+    "model": "claude-opus-5",
+    "openai_base_url": "http://localhost:11434/v1",
+    "openai_model": "llama3.1",
+    "_help": "provider = anthropic | openai. Keys live in the macOS Keychain, never here: account jarvis-mirror, service anthropic-key (or openai-key)."
+  },
+  "sources": [
+    "weather",
+    "traffic",
+    "mail",
+    "reminders",
+    "calendar",
+    "news",
+    "ticker",
+    "flights",
+    "aircraft",
+    "radar",
+    "sky"
+  ],
+  "_sources_help": "Enable only what you have. Extras that need Simon-style local projects: signals, scouts, ci, appstore, queues, onthisday."
+}
