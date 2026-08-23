@@ -1,7 +1,8 @@
 # A.L.I.C.E. — Attentive Local Intelligence & Concierge Engine
 
-A voice-driven smart mirror HUD in the Iron Man idiom: pure-black ground, glowing
-line-work, a rolodex of live cards, a timeline of your next 24 hours, real aircraft on
+A voice-driven HUD for the wall — a smart mirror behind two-way glass, or an
+interactive display on a plain monitor; same interface either way. Iron Man idiom:
+pure-black ground, glowing line-work, a rolodex of live cards, a timeline of your next 24 hours, real aircraft on
 the compass ring, precipitation radar, and a pluggable AI brain that answers from the
 mirror's own data. macOS-first. **Start with [SETUP.md](SETUP.md).**
 

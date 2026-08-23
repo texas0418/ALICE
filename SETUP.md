@@ -1,6 +1,7 @@
 # A.L.I.C.E. — Setup
 
-A voice-driven, Iron-Man-style smart-mirror HUD. Everything private (where you live,
+A voice-driven, Iron-Man-style HUD for a wall — behind mirror glass or on a plain
+monitor, your call. Everything private (where you live,
 your keys, your mail) lives in `config.local.json` and the macOS Keychain — never in
 code. **macOS-first**: reminders/calendar use EventKit, the stand-in voice is `say`,
 keys use Keychain. The HUD itself is a plain web page and will run anywhere.

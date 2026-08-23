@@ -1,8 +1,10 @@
 # What A.L.I.C.E. Can Do
 
-A.L.I.C.E. — Attentive Local Intelligence & Concierge Engine — is a voice-driven smart
-mirror. An Iron Man-style HUD drawn in glowing line-work on pure black (so it reads
-through two-way mirror glass), fed by live data, answered by an AI brain, spoken aloud.
+A.L.I.C.E. — Attentive Local Intelligence & Concierge Engine — is a voice-driven HUD for
+the wall: behind two-way mirror glass as a smart mirror, or straight on a wall-mounted
+monitor as an interactive display — the same interface either way. Iron Man-style
+line-work on pure black (which is what lets it read through glass), fed by live data,
+answered by an AI brain, spoken aloud.
 Everything below is built and running unless marked otherwise.
 
 ## The face (always on)
