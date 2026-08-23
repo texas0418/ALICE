@@ -56,6 +56,19 @@ Then grant Full Disk Access + Calendar + Reminders to `~/.venvs/jarvis/bin/pytho
 Wake word (openWakeWord, local) → Whisper (local) → your brain → `say`. Without a brain
 key it still listens and transcribes, and says so honestly.
 
+## Make it yours (name, voice, personality)
+Everything about the persona is in `config.local.json` → `persona`, no code changes:
+- `name` — what shows on the glass and what the brain calls itself (A.L.I.C.E. is just the default)
+- `acronym` — the subtitle under the name; leave empty for none
+- `description` — the personality the brain plays, in a sentence or two
+- `voice` — any `say -v ?` voice on macOS, or a Piper `.onnx` model path on Linux
+- `tts` — `say` | `piper` | `none` | `auto`
+- `wake_model` — any openWakeWord pretrained phrase (`hey_jarvis`, `alexa`, `hey_mycroft`,
+  `hey_rhasspy`) or a path to a model you trained for your own phrase. A custom phrase is
+  the one thing that needs more than config: train a model with openWakeWord's tooling,
+  or use a Picovoice Porcupine custom keyword.
+Restart the voice service and the daemon after editing; the HUD picks the name up on reload.
+
 ## Linux (partial today — see HARDWARE.md for the plan)
 What runs unchanged: the HUD, every data tool except calendar/reminders, the wake word,
 Whisper, the brain, the phone remote. The portable layer is in:

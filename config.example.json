@@ -2,11 +2,12 @@
   "persona": {
     "name": "ALICE",
     "acronym": "ATTENTIVE LOCAL INTELLIGENCE & CONCIERGE ENGINE",
+    "description": "composed, precise, lightly dry, warm underneath: a British woman who runs the house with quiet authority. Never chatty, never sycophantic.",
     "owner": "Your name",
     "voice": "Flo",
-    "wake_model": "hey_jarvis",
     "tts": "auto",
-    "_tts_help": "say (macOS) | piper (Linux, voice = path to .onnx) | none | auto"
+    "wake_model": "hey_jarvis",
+    "_help": "name shows on the glass and is how the brain refers to itself; acronym is the subtitle (may be empty); description is the personality the brain plays; voice = a `say -v ?` name on macOS or a Piper .onnx path on Linux; tts = say|piper|none|auto; wake_model = any openWakeWord pretrained model (hey_jarvis, alexa, hey_mycroft, hey_rhasspy) or a path to a custom-trained model"
   },
   "home": {
     "lat": 0.0,
