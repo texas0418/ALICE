@@ -25,6 +25,40 @@ on an Intel i7; Apple Silicon is faster still.
 - A cheap second screen (an N100 mini PC, a Pi, a tablet) can *display* the HUD over the
   LAN later, but the Mac stays the brain — the data and voice pipeline live there.
 
+### No Mac, or want it cheaper? (other builders)
+
+The reference build is macOS and that is what's tested. But roughly 80% of A.L.I.C.E. is
+already portable — the HUD is a web page, the data tools are plain Python, and the
+voice pipeline (openWakeWord, faster-whisper, the brain) runs on Linux unchanged. The
+macOS-only glue and its Linux stand-ins:
+
+| macOS piece | Linux equivalent | Status |
+|---|---|---|
+| EventKit calendar | CalDAV / ICS feeds (Outlook.com publishes ICS; iCloud speaks CalDAV) | not yet written |
+| Apple Reminders | iCloud CalDAV (VTODO) | not yet written |
+| Keychain | libsecret / systemd credentials | not yet written |
+| `say` voice | **Piper** local neural TTS (arguably better) | drop-in; one function |
+| launchd agents | systemd units | mechanical |
+
+Machine options, cheapest viable first:
+
+- **Intel N100 mini PC, 16 GB, Linux (~$130–180)** — the smart non-Mac brain. Silent,
+  6–10 W, runs 24/7; Whisper `base.en` transcribes a command in ~1 s. This is the
+  target for the Linux port.
+- **Raspberry Pi 5, 8 GB (~$80)** — HUD and wake word are fine; Whisper takes 3–5 s per
+  command on its CPU, which hurts the "alive" feeling. Pair it with cloud transcription
+  (streaming Deepgram/Whisper API) or accept the pause.
+- **Any Linux laptop you already own** — free, and usually faster than either.
+- **Mac mini (~$600)** — zero porting, everything works today; the premium is for effort
+  saved, not capability.
+- **Display-only box + a Mac elsewhere** — an N100, Pi, or tablet can *show* the HUD over
+  the LAN while the Mac stays the brain; see §1.
+
+If you build the Linux path before it lands here, the contract to preserve is small:
+data tools write `*data.js` files the HUD reads; `voice/brain.py` → `ask(text)` returns
+`{speech, focus}`; secrets are read at runtime from a store, never from files in the repo.
+Pull requests welcome.
+
 ## 2. The panel
 
 - **Size** — whatever fits the wall. The HUD is resolution-independent (one 1600×1000
