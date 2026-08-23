@@ -4,7 +4,8 @@ A voice-driven HUD for the wall — a smart mirror behind two-way glass, or an
 interactive display on a plain monitor; same interface either way. Iron Man idiom:
 pure-black ground, glowing line-work, a rolodex of live cards, a timeline of your next 24 hours, real aircraft on
 the compass ring, precipitation radar, and a pluggable AI brain that answers from the
-mirror's own data. macOS-first. **Start with [SETUP.md](SETUP.md).**
+mirror's own data. macOS-first. **Start with [SETUP.md](SETUP.md)** for the software and
+**[HARDWARE.md](HARDWARE.md)** for the panel, glass, sensor and wall.
 
 Bring your own keys and your own AI: everything private lives in `config.local.json`
 and the Keychain. The brain speaks Anthropic by default or any OpenAI-compatible
