@@ -4,7 +4,9 @@
     "acronym": "ATTENTIVE LOCAL INTELLIGENCE & CONCIERGE ENGINE",
     "owner": "Your name",
     "voice": "Flo",
-    "wake_model": "hey_jarvis"
+    "wake_model": "hey_jarvis",
+    "tts": "auto",
+    "_tts_help": "say (macOS) | piper (Linux, voice = path to .onnx) | none | auto"
   },
   "home": {
     "lat": 0.0,

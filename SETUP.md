@@ -56,6 +56,17 @@ Then grant Full Disk Access + Calendar + Reminders to `~/.venvs/jarvis/bin/pytho
 Wake word (openWakeWord, local) → Whisper (local) → your brain → `say`. Without a brain
 key it still listens and transcribes, and says so honestly.
 
+## Linux (partial today — see HARDWARE.md for the plan)
+What runs unchanged: the HUD, every data tool except calendar/reminders, the wake word,
+Whisper, the brain, the phone remote. The portable layer is in:
+- `tools/vault.py` — secrets via macOS Keychain, Linux `secret-tool` (libsecret), or
+  `JARVIS_<SERVICE>` env vars. `vault.py put jarvis-mirror anthropic-key` prompts and stores.
+- `voice/tts.py` — `say` on macOS, **Piper** on Linux (`persona.tts`, `persona.voice` =
+  path to a `.onnx` model), or `none`.
+- `voice/presence.py` — finds `/dev/ttyUSB*` / `/dev/ttyACM*` as well as macOS ports.
+Not yet: calendar/reminders providers (CalDAV/ICS), systemd units, a Linux kiosk script.
+Run `tools/doctor.py` first on any new box — it reports exactly what's present.
+
 ## The brain contract
 `voice/brain.py` → `ask(text)` returns `{"speech": str, "focus": card|None}`; speech may
 carry `[phrase|target]` pulse markers. `provider: anthropic` uses the Claude API with a

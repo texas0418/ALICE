@@ -20,7 +20,7 @@ import websockets
 from openwakeword.model import Model
 from faster_whisper import WhisperModel
 
-import brain
+import brain, tts
 
 HOST, PORT   = '127.0.0.1', 8765
 SR           = 16000        # whisper's native rate; resampling later would be waste
@@ -50,7 +50,8 @@ MAX_UTTER    = 12.0
 # overhead rather than audio length — so long questions cost no more than short ones.
 STT_MODEL    = 'base.en'
 STT_THREADS  = 6            # of 8; leaving headroom for the HUD's own rendering
-TTS_VOICE    = _PERSONA.get('voice', 'Flo')   # any `say -v ?` voice; config.persona.voice
+TTS_VOICE    = _PERSONA.get('voice', 'Flo')   # `say` voice name, or a Piper .onnx path
+TTS_BACKEND  = _PERSONA.get('tts', 'auto')    # say | piper | none | auto
 MARK_RE      = __import__('re').compile(r'\[([^\]|]+)\|[^\]]+\]')
 
 clients: set = set()
@@ -172,7 +173,8 @@ def listener():
         spoken = MARK_RE.sub(r'\1', d['speech'])
         emit(t='state', s='SPEAKING')
         try:
-            subprocess.run(['say', '-v', TTS_VOICE, spoken], timeout=60)
+            if tts.speak(spoken, TTS_VOICE, TTS_BACKEND) == 'none':
+                time.sleep(max(1.6, len(spoken) * 0.05))   # silent: pace the HUD
         except Exception:
             time.sleep(max(1.6, len(spoken) * 0.05))
         emit(t='state', s='IDLE')

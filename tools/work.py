@@ -13,6 +13,7 @@ The refresh token lives in the Keychain (jarvis-mirror / msgraph-refresh) and is
 rotated there on every refresh. Access tokens are never persisted.
 """
 import json, os, subprocess, sys, time, urllib.parse, urllib.request
+import vault
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = '14d82eec-204b-4c2f-b7e8-296a70dab67e'   # Microsoft Graph Command Line Tools
@@ -24,14 +25,11 @@ KC = ('jarvis-mirror', 'msgraph-refresh')
 
 
 def kc_get():
-    r = subprocess.run(['security', 'find-generic-password', '-a', KC[0],
-                        '-s', KC[1], '-w'], capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+    return vault.get(KC[0], KC[1])
 
 
 def kc_set(v):
-    subprocess.run(['security', 'add-generic-password', '-U', '-a', KC[0],
-                    '-s', KC[1], '-w', v], capture_output=True)
+    vault.put(KC[0], KC[1], v)
 
 
 def post(url, data):

@@ -24,8 +24,9 @@ def find_port():
     for a in sys.argv:
         if a.startswith('--port'):
             return sys.argv[sys.argv.index(a) + 1] if a == '--port' else a.split('=')[1]
-    hits = (glob.glob('/dev/cu.usbserial*') + glob.glob('/dev/cu.usbmodem*')
-            + glob.glob('/dev/cu.SLAB*') + glob.glob('/dev/cu.wchusbserial*'))
+    hits = (glob.glob('/dev/cu.usbserial*') + glob.glob('/dev/cu.usbmodem*')   # macOS
+            + glob.glob('/dev/cu.SLAB*') + glob.glob('/dev/cu.wchusbserial*')
+            + glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*'))             # Linux
     return hits[0] if hits else None
 
 

@@ -9,6 +9,7 @@ failure mode is stale status, never a bill.
 """
 import json, os, subprocess, sys, urllib.request
 from datetime import datetime, date
+import vault
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOST = 'aerodatabox.p.rapidapi.com'
@@ -17,9 +18,7 @@ STATE = os.path.join(ROOT, '.flights-state.json')
 
 
 def keychain():
-    r = subprocess.run(['security', 'find-generic-password', '-a', 'jarvis-mirror',
-                        '-s', 'rapidapi-key', '-w'], capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+    return vault.get('jarvis-mirror', 'rapidapi-key')
 
 
 def load_json(path, default):
@@ -96,7 +95,7 @@ def main():
     quiet = '--quiet' in sys.argv
     key = keychain()
     if not key:
-        print('  no rapidapi-key in Keychain yet — writing empty status')
+        print('  no rapidapi-key stored yet — writing empty status')
         open(os.path.join(ROOT, 'flightdata.js'), 'w').write(
             'const FLIGHTSTATUS={"statuses":{},"note":"no API key"};\n')
         return

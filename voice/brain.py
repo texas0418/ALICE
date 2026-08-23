@@ -11,6 +11,8 @@ JSON: {"speech": ..., "focus": ...}, where speech may carry the HUD's
 Test without the microphone:   brain.py "how's traffic to the airport"
 """
 import json, os, re, subprocess, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools'))
+import vault
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -78,9 +80,7 @@ null, use no markers."""
 
 
 def keychain(account, service):
-    r = subprocess.run(['security', 'find-generic-password', '-a', account,
-                        '-s', service, '-w'], capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+    return vault.get(account, service)        # Keychain / libsecret / env
 
 
 def snapshot():
@@ -109,9 +109,8 @@ def client():
         import anthropic
         key = keychain('jarvis-mirror', 'anthropic-key')
         if not key:
-            raise RuntimeError('no anthropic-key in Keychain — run:\n'
-                               '  security add-generic-password -U -a jarvis-mirror '
-                               '-s anthropic-key -w')
+            raise RuntimeError('no anthropic-key stored — run:\n  '
+                               + vault.hint('jarvis-mirror', 'anthropic-key'))
         _client = anthropic.Anthropic(api_key=key)
     return _client
 

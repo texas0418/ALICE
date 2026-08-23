@@ -7,6 +7,7 @@ echo a URL is scrubbed, because Mapbox carries the token in the query string and
 one unhandled traceback would otherwise leak it into a log.
 """
 import json, os, re, subprocess, sys, urllib.request, urllib.error
+import vault
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONG = {'low': 0, 'moderate': 1, 'heavy': 2, 'severe': 3, 'unknown': 0}
@@ -18,14 +19,10 @@ def scrub(s):
 
 
 def token():
-    r = subprocess.run(
-        ['security', 'find-generic-password', '-a', 'jarvis-mirror',
-         '-s', 'mapbox-token', '-w'],
-        capture_output=True, text=True)
-    if r.returncode != 0:
-        sys.exit('No mapbox-token in Keychain. Run:\n'
-                 '  security add-generic-password -U -a jarvis-mirror -s mapbox-token -w')
-    t = r.stdout.strip()
+    t = vault.get('jarvis-mirror', 'mapbox-token')
+    if not t:
+        sys.exit('No mapbox-token stored. Run:\n  '
+                 + vault.hint('jarvis-mirror', 'mapbox-token'))
     if not t.startswith('pk.'):
         sys.exit('Keychain entry does not look like a Mapbox public token.')
     return t

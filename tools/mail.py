@@ -10,6 +10,7 @@ your inbox on the mirror never marks anything as read. Getting this wrong once w
 mean the mirror silently eats your unread flags, which you would notice far too late.
 """
 import email, imaplib, json, os, re, ssl, subprocess, sys, time
+import vault
 from email.header import decode_header, make_header
 from datetime import datetime, timezone
 
@@ -20,10 +21,7 @@ imaplib._MAXLINE = 400000
 
 
 def keychain(address):
-    r = subprocess.run(['security', 'find-generic-password',
-                        '-a', address, '-s', 'jarvis-mail', '-w'],
-                       capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+    return vault.get(address, 'jarvis-mail')
 
 
 def clean(raw):
@@ -55,7 +53,7 @@ def when(msg):
 def fetch(acct):
     pw = keychain(acct['address'])
     if not pw:
-        return {'error': 'no Keychain entry'}
+        return {'error': 'no stored password — ' + vault.hint(acct['address'], 'jarvis-mail')}
     M, last = None, None
     for attempt in range(ATTEMPTS):
         try:
