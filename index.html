@@ -345,6 +345,18 @@ body{font-family:ui-sans-serif,-apple-system,"Helvetica Neue",Arial,sans-serif;
   text-shadow:0 0 6px var(--hot),0 0 18px var(--g1),0 0 44px var(--g2),0 0 80px var(--g3)}
 #wordmark .wms{font-size:8.5px;letter-spacing:.38em;color:var(--cy2);opacity:.85;
   margin-top:6px;padding-left:.38em;text-shadow:0 0 8px var(--g3)}
+/* Compact mode (phone / car): the ring and the cards, nothing else. The host sets
+   data-compact on <html>; fit() then scales a smaller virtual canvas so the core fills
+   the screen instead of shrinking the whole 1600x1000 frame to a postage stamp. */
+html[data-compact] #pTL,html[data-compact] #pBL,html[data-compact] #pBR,
+html[data-compact] #rolo,html[data-compact] #tline,html[data-compact] #tape,
+html[data-compact] #hint,html[data-compact] .brk,html[data-compact] #grid,
+html[data-compact] #contacts{display:none!important}
+html[data-compact] #pTR{display:block;top:16px;right:40px}
+html[data-compact] #wordmark{top:14px}
+html[data-compact] #wordmark .wm{font-size:18px}
+html[data-compact] #wordmark .wms{display:none}
+html[data-compact] #resp{bottom:4%}
 #hint b{color:var(--hot);font-weight:400}
 #hint{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);
   font-size:10px;letter-spacing:.42em;color:var(--cy);opacity:0;transition:opacity .7s;
@@ -1822,7 +1834,10 @@ function fit(){
   const w = innerWidth  || document.documentElement.clientWidth  || 0;
   const h = innerHeight || document.documentElement.clientHeight || 0;
   if (w < 50 || h < 50) { setTimeout(fit, 250); return }   // no viewport yet — retry
-  const s = Math.max(0.1, Math.min(w / 1600, h / 1000));
+  const compact = document.documentElement.dataset.compact != null;
+  // compact: fit the core (800 + margins) not the full frame
+  const cw = compact ? 1120 : 1600, ch = compact ? 1000 : 1000;
+  const s = Math.max(0.1, Math.min(w / cw, h / ch));
   document.documentElement.style.setProperty('--s', s.toFixed(4));
 }
 fit();
@@ -1878,7 +1893,8 @@ function drift(){
 drift(); setInterval(drift, 30000);
 addEventListener('visibilitychange', fit);   // waking from a hidden state re-measures
 
-if(typeof STATUS!=='undefined'){
+function fillStatus(){
+if(typeof STATUS==='undefined')return;
   const e=$('#dataOk');
   if(e){
     const bad=STATUS.sources.filter(x=>x.stale||x.missing);
@@ -1887,8 +1903,10 @@ if(typeof STATUS!=='undefined'){
     else { e.textContent='CURRENT'; e.classList.remove('a'); }
   }
 }
+fillStatus();
 
-if(typeof WEATHER!=='undefined'){
+function fillWeatherPanel(){
+if(typeof WEATHER==='undefined')return;
   const W=WEATHER, q=(id,v)=>{const e=$(id); if(e)e.textContent=v};
   q('#wTemp',W.temp+'\u00B0F'); q('#wFeels',W.feels+'\u00B0F'); q('#wSky',W.sky);
   q('#wSunset',W.sunset);
@@ -1900,6 +1918,7 @@ if(typeof WEATHER!=='undefined'){
   q('#wPeakK','PRECIP '+(W.peakClock||'')); q('#wPeak',(W.peak||0)+'%');
   $('#loc').textContent = W.place;
 }
+fillWeatherPanel();
 
 (()=>{const missing=[...new Set(SCRIPT.map(t=>t.f).filter(f=>f&&!FOCUS[f]))];
   if(missing.length){
@@ -1914,7 +1933,8 @@ if(typeof WEATHER!=='undefined'){
 roloBuild();
 
 // persona from config (via personadata.js) — name, acronym, wake phrase, place
-if(typeof PERSONA!=='undefined'){
+function applyPersona(){
+if(typeof PERSONA==='undefined')return;
   const q=(sel,v)=>{const e=document.querySelector(sel); if(e&&v)e.textContent=v};
   const dots=PERSONA.name.split('').join('.')+'.';
   q('#wordmark .wm', dots);
@@ -1924,6 +1944,34 @@ if(typeof PERSONA!=='undefined'){
   document.title=PERSONA.name;
   const ww=document.querySelector('#pTL .row .v.a'); if(ww)ww.textContent=PERSONA.wake;
 }
+applyPersona();
+
+/* ---- host bridge ----
+   A host that feeds data by injection (the phone app) sets the same globals the Mac
+   writes as *data.js, then calls aliceRefresh() to repaint everything that reads them
+   at load. aliceAnswer() drives a full voice turn; aliceIdle() ends it. */
+window.aliceRefresh=function(){
+  for(const f of [applyPersona,fillWeatherPanel,fillStatus,buildTape,tlDraw,drawContacts,applyDim]){
+    try{f()}catch(_){}
+  }
+};
+window.aliceAnswer=function(focus,speech){
+  busy=true;
+  (async()=>{
+    setState('THINKING','LOCATING'); roloSpin(focus||'news');
+    await new Promise(r=>setTimeout(r,1000));
+    if(focus&&FOCUS[focus]){activeFocus=focus;enterFocus(focus);
+      await new Promise(r=>setTimeout(r,1050));}
+    setState('SPEAKING',''); say(speech,()=>{});
+  })();
+};
+window.aliceIdle=function(){ setState('IDLE'); setTimeout(()=>{if(state==='IDLE')exitFocus()},2500); busy=false; };
+window.aliceState=function(s,sub){ setState(s,sub); };
+window.aliceCompact=function(on){ if(on)document.documentElement.dataset.compact='1';
+  else delete document.documentElement.dataset.compact; fit(); };
+// ?compact in the URL does the same for any host
+if(/compact/.test(location.search)){document.documentElement.dataset.compact='1';setTimeout(fit,0)}
+window.aliceHeard=function(text){ $('#stateSub').textContent='"'+text.toUpperCase()+'"'; };
 
 /* ---- timeline rail ---- */
 function tlGather(){
@@ -2065,14 +2113,15 @@ setInterval(pollControl,3000);
 fetch('controldata.js?x='+Date.now(),{cache:'no-store'}).then(r=>r.text())
   .then(t=>{const m=t.match(/"seq":\s*(\d+)/); if(m)ctlSeq=+m[1]}).catch(()=>{});
 
-(function tape(){
+function buildTape(){
   const el=$('#tapeIn'); if(!el||typeof TICKER==='undefined'||!TICKER.rows.length)return;
   const cell=r=>`<span class="tk"><span class="s">${r.sym}</span>`+
     `<span class="p">${r.px.toLocaleString()}</span>`+
     `<span class="c ${r.chg>=0?'up':'dn'}">${r.chg>=0?'+':''}${r.chg.toFixed(2)}%</span></span>`;
   const half=TICKER.rows.map(cell).join('');
   el.innerHTML=half+half;                 // two copies; the loop scrolls exactly one
-})();
+}
+buildTape();
 
 // dev scaffolding is invisible on the real mirror: kiosk.sh appends ?kiosk
 if(/kiosk/.test(location.search)) $('#hint').style.display='none';
