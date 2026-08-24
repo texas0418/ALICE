@@ -512,6 +512,7 @@ html[data-compact] #resp{bottom:4%}
 <script src="onthisdaydata.js"></script>
 <script src="personadata.js"></script>
 <script>
+if(/ALICEApp/.test(navigator.userAgent))document.documentElement.dataset.mobile='1';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const NS='http://www.w3.org/2000/svg';
 const el=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e};
@@ -592,8 +593,9 @@ for(let i=0;i<N;i++){const a=R(i/N*360);
   wave.appendChild(l);bars.push({el:l,a,v:0,t:i*.37})}
 
 /* ---- state ---- */
+const MOBILE_HOST=document.documentElement.dataset.mobile!=null;
 const ST={
-  IDLE     :{l:'STANDBY',   s:'AWAITING WAKE WORD', e:.30},
+  IDLE     :{l:'STANDBY',   s:MOBILE_HOST?'TAP TALK TO SPEAK':'AWAITING WAKE WORD', e:.30},
   WAKE     :{l:'ATTENTION', s:'WAKE WORD DETECTED', e:.95},
   LISTENING:{l:'LISTENING', s:'SPEAK NOW',          e:.8},
   THINKING :{l:'PROCESSING',s:'QUERY IN FLIGHT',    e:.45},
@@ -2042,7 +2044,9 @@ window.aliceIdle=function(){ setState('IDLE'); setTimeout(()=>{if(state==='IDLE'
 window.aliceState=function(s,sub){ setState(s,sub); };
 window.aliceMobile=function(on){
   if(on){document.documentElement.dataset.mobile='1';
-    delete document.documentElement.dataset.compact;}
+    delete document.documentElement.dataset.compact;
+    ST.IDLE.s='TAP TALK TO SPEAK';
+    if(state==='IDLE')setState('IDLE');}
   else delete document.documentElement.dataset.mobile;
   fit();
 };
