@@ -1,4 +1,7 @@
 <meta charset="utf-8">
+<!-- Without this, a phone WebView lays the page out at 980px and shrinks it ~2.5x —
+     every "native-size" font becomes unreadable. Desktop kiosk Chrome ignores it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>ALICE</title>
 <style>
 :root{
@@ -353,10 +356,44 @@ html[data-mobile] #rolo,html[data-mobile] #tline,html[data-mobile] #tape,
 html[data-mobile] #hint,html[data-mobile] .brk,html[data-mobile] #grid,
 html[data-mobile] #contacts,html[data-mobile] #resp,html[data-mobile] #focusWrap,
 html[data-mobile] #wordmark .wms{display:none!important}
-html[data-mobile] #stage{top:0;transform:translate(-50%,0) scale(var(--s,1));
+/* portrait: ring is a crown at the 1/3 line, panel owns the rest.
+   landscape: ring rides the LEFT side; the right side is the answer column. */
+html[data-mobile][data-portrait] #stage{top:var(--mring,0px);transform:translate(-50%,0) scale(var(--s,1));
   transform-origin:50% 0;height:1000px}
-html[data-mobile] #pTR{display:block;top:30px;right:110px}
-html[data-mobile] #wordmark{top:30px}
+html[data-mobile]:not([data-portrait]) #stage{left:var(--lx,50%)}
+html[data-mobile]:not([data-portrait]) #mPanel{left:55vw;right:0;top:0;bottom:0;max-height:none;
+  padding:calc(110px + env(safe-area-inset-top)) 20px 20px 20px;background:none}
+/* clock/date/loc: screen-anchored per orientation (vars from fit()), phone-legible */
+html[data-mobile] #date{font-size:24px}
+html[data-mobile] #loc{font-size:22px}
+/* readout + boot text are sized for a wall; portrait needs phone-legible design-px
+   (these sit inside the stage, so effective size is ~0.45x on a phone) */
+html[data-mobile][data-portrait] #stateLabel{font-size:28px;letter-spacing:.4em}
+html[data-mobile][data-portrait] #big{font-size:96px}
+html[data-mobile][data-portrait] #big span{font-size:32px}
+html[data-mobile][data-portrait] #stateSub{font-size:26px;letter-spacing:.18em}
+html[data-mobile][data-portrait] #boot{font-size:26px;width:720px;line-height:2}
+html[data-mobile] #mPanel .mState{font-size:12.5px}
+html[data-mobile] #pTR{display:block;top:var(--ptrT,30px);right:var(--ptrR,110px)}
+html[data-mobile] #wordmark{top:var(--wmT,30px)}
+html[data-mobile] #wordmark .wm{font-size:34px}
+/* Rotation choreography, the focus-card way: sliding positions through the OS
+   rotation reflow always smears. The instant the OS starts rotating, everything
+   vanishes (hud-hold, no transition) so no frame ever shows the old layout in
+   the new orientation… */
+html.hud-hold #stage,html.hud-hold #mPanel,html.hud-hold #pTR,html.hud-hold #wordmark{
+  opacity:0!important;transition:none!important}
+/* …then once the layout has converged, it flies in staged like her boot:
+   ring, then header, then the panel rising into place. */
+html.hud-arrive #stage{transition:none!important;animation:hudIn .45s ease both}
+html.hud-arrive #wordmark{transition:none!important;animation:hudIn .45s ease .12s both}
+html.hud-arrive #pTR{transition:none!important;animation:hudIn .45s ease .18s both}
+html.hud-arrive #mPanel{transition:none!important;animation:panelIn .5s ease .24s both}
+@keyframes hudIn{from{opacity:0}to{opacity:1}}
+@keyframes panelIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+/* portrait: the wordmark is the header statement, centred and large;
+   the clock block tucks in below it on the right */
+html[data-mobile][data-portrait] #wordmark .wm{font-size:64px;letter-spacing:.5em;padding-left:.5em}
 #mPanel{display:none}
 html[data-mobile] #mPanel{display:flex;flex-direction:column;position:fixed;
   left:0;right:0;bottom:0;top:var(--mtop,46vh);padding:14px 18px
@@ -372,7 +409,7 @@ html[data-mobile] #mPanel{display:flex;flex-direction:column;position:fixed;
   justify-content:space-between;border-bottom:1px solid var(--g1);padding-bottom:8px;
   margin-bottom:10px;text-shadow:0 0 8px var(--g2)}
 #mPanel .fhdr span{font-size:10px;color:var(--cy);opacity:.8}
-#mPanel .mbig{font-size:44px;color:var(--hot);text-shadow:0 0 6px var(--hot),0 0 20px var(--g1)}
+#mPanel .mbig{font-size:30px;color:var(--hot);text-shadow:0 0 6px var(--hot),0 0 20px var(--g1)}
 #mPanel .mbig span{font-size:13px;opacity:.55;margin-left:5px}
 #mPanel .ftemp{font-size:52px;color:var(--hot);text-shadow:0 0 6px var(--hot),0 0 20px var(--g1)}
 #mPanel .ftemp span{font-size:17px;opacity:.5}
@@ -460,7 +497,7 @@ html[data-compact] #resp{bottom:4%}
 
   <div class="panel p-tr" id="pTR">
     <div id="clock">--:--<small>--</small></div>
-    <div id="date">—</div><div id="loc">TUCKER · GA</div>
+    <div id="date">—</div><div id="loc">YOUR · CITY</div>
   </div>
 
   <div class="panel p-bl" id="pBL"><div class="frame flip"><div class="fb"></div><div class="fi"></div><div class="c">
@@ -486,10 +523,12 @@ html[data-compact] #resp{bottom:4%}
   <div id="tline"><div class="tl-hdr">NEXT 24H</div><div class="tl-rail"></div></div>
   <div id="hint"></div>
   <div id="tape"><div id="tapeIn"></div></div>
-  <div id="mPanel"><div class="mState">STANDBY</div><div class="mResp"></div><div class="mCard"></div></div>
   <div id="boot"></div>
   <div id="sweep"></div><div id="scan"></div><div id="vig"></div>
 </div>
+<!-- OUTSIDE #stage on purpose: the stage's transform would hijack position:fixed,
+     scaling the panel to ~45% and shoving it half off-screen on a phone. -->
+<div id="mPanel"><div class="mState">STANDBY</div><div class="mResp"></div><div class="mCard"></div></div>
 
 <script src="mapdata.js"></script>
 <script src="maildata.js"></script>
@@ -595,7 +634,7 @@ for(let i=0;i<N;i++){const a=R(i/N*360);
 /* ---- state ---- */
 const MOBILE_HOST=document.documentElement.dataset.mobile!=null;
 const ST={
-  IDLE     :{l:'STANDBY',   s:MOBILE_HOST?'TAP TALK TO SPEAK':'AWAITING WAKE WORD', e:.30},
+  IDLE     :{l:'STANDBY',   s:MOBILE_HOST?'TAP TO SPEAK':'AWAITING WAKE WORD', e:.30},
   WAKE     :{l:'ATTENTION', s:'WAKE WORD DETECTED', e:.95},
   LISTENING:{l:'LISTENING', s:'SPEAK NOW',          e:.8},
   THINKING :{l:'PROCESSING',s:'QUERY IN FLIGHT',    e:.45},
@@ -605,6 +644,10 @@ let state='IDLE',energy=.30;
 function setState(k,sub){state=k;const S=ST[k];
   const mS=$('#mPanel .mState');
   if(mS)mS.textContent=S.l+(sub!==undefined&&sub?' — '+sub:(S.s?' — '+S.s:''));
+  if(k==='LISTENING'&&document.documentElement.dataset.mobile!=null){
+    // a new turn wipes the previous answer from the panel
+    const mc=$('#mPanel .mCard');if(mc)mc.innerHTML='';
+    const mr=$('#mPanel .mResp');if(mr)mr.innerHTML='';}
   $('#stateLabel').textContent=S.l;
   $('#stateSub').textContent=sub!==undefined?sub:S.s;
   $('#glowcore').style.opacity=isFocused?0:(k==='IDLE'?.5:.95);
@@ -1614,6 +1657,14 @@ function enterFocus(kind){
 function exitFocus(){
   if(!isFocused)return;
   stopDot(); stopRadar();
+  if(document.documentElement.dataset.mobile!=null){
+    // phone: the card lives in the panel — clear it or it lingers across
+    // answers and app resumes, reading as data nobody asked for
+    const mc=$('#mPanel .mCard'); if(mc)mc.innerHTML='';
+    $('#mPanel .mResp').innerHTML='';
+    $('#focusCard').innerHTML=''; isFocused=false; activeFocus=null;
+    return;
+  }
   const card=$('#focusCard'), F=FOCUS[activeFocus], src=F.src?$(F.src):null;
   const cr=card.getBoundingClientRect();
   const sr=roloBandRect();
@@ -1897,18 +1948,64 @@ connectVoice();
    nothing and leave it there, since fit() only re-ran on resize. A wall mirror
    would show a black screen with everything behind it running fine. */
 function fit(){
-  const w = innerWidth  || document.documentElement.clientWidth  || 0;
-  const h = innerHeight || document.documentElement.clientHeight || 0;
+  // An app host injects the TRUE viewport (window.aliceViewport) from the native
+  // layout pass — WKWebView's own innerWidth/Height can stay stuck on the old
+  // orientation forever after a rotation (observed: return-to-portrait black).
+  const av = window.aliceViewport;
+  const w = (av && av.w) || innerWidth  || document.documentElement.clientWidth  || 0;
+  const h = (av && av.h) || innerHeight || document.documentElement.clientHeight || 0;
   if (w < 50 || h < 50) { setTimeout(fit, 250); return }   // no viewport yet — retry
+  fit.w = w; fit.h = h;   // watchFit() compares against what was actually applied
   const mobile = document.documentElement.dataset.mobile != null;
   const compact = document.documentElement.dataset.compact != null;
   let s;
   if (mobile) {
-    // ring is a crown: fits the width, and never more than ~44% of the height;
-    // the native-size panel owns the rest
-    s = Math.max(0.1, Math.min(w / 1200, (h * 0.44) / 1000));
-    document.documentElement.style.setProperty('--mtop',
-      Math.round(1000 * s * 0.94) + 'px');
+    const portrait = h > w;
+    // Orientation flips re-lay-out INSTANTLY: the app injects final dimensions
+    // at rotation START, so the OS rotation animation itself morphs old-into-new
+    // — hiding or flying in here would only add a gap. (hud-hold/hud-arrive CSS
+    // and aliceRotate() remain available if a host ever wants the staged entry.)
+    if (fit.lastPortrait !== undefined && fit.lastPortrait !== portrait) {
+      const el = document.documentElement;
+      el.classList.remove('hud-hold'); clearTimeout(fit.holdT);
+    }
+    fit.lastPortrait = portrait;
+    if (portrait) document.documentElement.dataset.portrait = '1';
+    else delete document.documentElement.dataset.portrait;
+    const css = (k, v) => document.documentElement.style.setProperty(k, v);
+    if (portrait) {
+      // ring nearly fills the width and its centre rides the 1/3 line;
+      // the native panel owns everything below it
+      s = Math.max(0.1, w / 870);
+      // the notch/Dynamic Island eats the top of the viewport with viewport-fit=cover.
+      // env() only resolves inside a real property, so measure it with a probe —
+      // getPropertyValue on a custom property hands back the unresolved string.
+      let sat = 0;
+      try {
+        const p = document.createElement('div');
+        p.style.cssText = 'position:fixed;left:0;width:1px;height:1px;visibility:hidden;top:env(safe-area-inset-top,0px)';
+        document.body.appendChild(p);
+        sat = p.getBoundingClientRect().top || 0;
+        p.remove();
+      } catch (_) {}
+      // an app host injects the exact inset — env() can read 0 on early passes
+      if (typeof window.aliceSafeTop === 'number') sat = Math.max(sat, window.aliceSafeTop);
+      const top = Math.max(Math.round(h * 0.38 - 484 * s), Math.round(sat + 62));
+      css('--mring', top + 'px');
+      css('--mtop', Math.round(top + 900 * s) + 'px');
+      // header: big centred wordmark below the island, clock block right-aligned under it
+      // (screen x -> stage x is (x - w/2)/s + 800; stage top sits `top` px down)
+      css('--wmT', Math.round((sat + 8 - top) / s) + 'px');
+      css('--ptrR', Math.round(800 - w / (2 * s) + 16 / s) + 'px');
+      css('--ptrT', Math.round((sat + 54 - top) / s) + 'px');
+    } else {
+      // landscape: ring rides the left, its centre at 27% of the width;
+      // the right side is the native answer column
+      s = Math.max(0.1, Math.min((w * 0.55) / 1120, h / 1000));
+      css('--lx', '27%');
+      css('--ptrR', Math.round(800 - (w * 0.73) / s + 16 / s) + 'px');
+      css('--ptrT', Math.round(500 - h / (2 * s) + 40 / s) + 'px');
+    }
   } else {
     const cw = compact ? 1120 : 1600;
     s = Math.max(0.1, Math.min(w / cw, h / 1000));
@@ -1917,6 +2014,24 @@ function fit(){
 }
 fit();
 addEventListener('resize', fit);
+/* Rotation on a phone host is driven ENTIRELY by the native side: WKWebView's
+   own resize/orientation events fire late, twice, or never (a stray late event
+   once re-armed the hold after landing — black screen). The app calls
+   aliceRotate() with the true dimensions the moment its layout flips; fit()
+   lands the new layout, releases the hold, and plays the staged fly-in. */
+window.aliceRotate = function (v) {
+  const el = document.documentElement;
+  el.classList.remove('hud-arrive');
+  el.classList.add('hud-hold');
+  window.aliceViewport = v;
+  clearTimeout(fit.holdT);
+  fit.holdT = setTimeout(() => el.classList.remove('hud-hold'), 1500);  // failsafe
+  requestAnimationFrame(fit);
+};
+setTimeout(fit, 400); setTimeout(fit, 1200); // late safe-area/host injection at launch
+// (visibilitychange listener + permanent dimension poll live below, from the
+// rotation-fix pass — the poll backstops the burst poll above when events
+// never arrive at all)
 
 /* ---- night dimming ----
    A mirror is a lamp in a dark hallway if it runs at full brightness all night.
@@ -1966,7 +2081,17 @@ function drift(){
   document.documentElement.style.setProperty('--drift-y', y.toFixed(1)+'px');
 }
 drift(); setInterval(drift, 30000);
-addEventListener('visibilitychange', fit);   // waking from a hidden state re-measures
+// A WebView's viewport settles at unpredictable times around a rotation, and
+// sometimes delivers NO resize/orientationchange at all (observed on iOS: the
+// return-to-portrait rotation left the old layout stuck for good). Events are
+// unreliable here; a permanent cheap poll can never miss a dimension change.
+setInterval(() => {
+  const av = window.aliceViewport;
+  const cw = (av && av.w) || innerWidth, ch = (av && av.h) || innerHeight;
+  if (cw !== fit.w || ch !== fit.h) fit();
+}, 250);
+window.fitNow = fit;   // app host calls this right after injecting aliceViewport
+addEventListener('visibilitychange', fit);   // waking from hidden re-measures at once
 
 function fillStatus(){
 if(typeof STATUS==='undefined')return;
@@ -1985,15 +2110,17 @@ if(typeof WEATHER==='undefined')return;
   const W=WEATHER, q=(id,v)=>{const e=$(id); if(e)e.textContent=v};
   q('#wTemp',W.temp+'\u00B0F'); q('#wFeels',W.feels+'\u00B0F'); q('#wSky',W.sky);
   q('#wSunset',W.sunset);
-  if(W.aqi!=null){
+  if(W.aqi!=null&&W.aqiLabel){
     const e=$('#wAqi');
     e.textContent=W.aqi+' '+(W.aqiLabel==='SENSITIVE GROUPS'?'SENS':W.aqiLabel.split(' ')[0]);
     e.classList.toggle('a', W.aqi>100);   // amber once it matters to breathe
   }
   q('#wPeakK','PRECIP '+(W.peakClock||'')); q('#wPeak',(W.peak||0)+'%');
-  $('#loc').textContent = W.place;
+  if(W.place)$('#loc').textContent = W.place;
 }
-fillWeatherPanel();
+// a partial or absent weatherdata.js (fresh clone, first run) must never keep
+// the whole HUD from booting
+try{fillWeatherPanel()}catch(_){}
 
 (()=>{const missing=[...new Set(SCRIPT.map(t=>t.f).filter(f=>f&&!FOCUS[f]))];
   if(missing.length){
@@ -2040,16 +2167,27 @@ window.aliceAnswer=function(focus,speech){
     setState('SPEAKING',''); say(speech,()=>{});
   })();
 };
-window.aliceIdle=function(){ setState('IDLE'); setTimeout(()=>{if(state==='IDLE')exitFocus()},2500); busy=false; };
+window.aliceIdle=function(){ setState('IDLE');
+  // phone: leave the reply + card readable for a minute (voice may be muted);
+  // wall: retract quickly as before
+  const hold=document.documentElement.dataset.mobile!=null?60000:2500;
+  setTimeout(()=>{if(state==='IDLE')exitFocus()},hold); busy=false; };
 window.aliceState=function(s,sub){ setState(s,sub); };
 window.aliceMobile=function(on){
   if(on){document.documentElement.dataset.mobile='1';
     delete document.documentElement.dataset.compact;
-    ST.IDLE.s='TAP TALK TO SPEAK';
+    ST.IDLE.s='TAP TO SPEAK';
     if(state==='IDLE')setState('IDLE');}
   else delete document.documentElement.dataset.mobile;
   fit();
 };
+/* On a phone host the whole screen is the talk button: a tap anywhere forwards
+   to the app (a drag still scrolls the panel — it never becomes a click).
+   No-op on the wall: there is no ReactNativeWebView there. */
+document.addEventListener('click',()=>{
+  if(document.documentElement.dataset.mobile!=null&&window.ReactNativeWebView)
+    window.ReactNativeWebView.postMessage('talk');
+});
 window.aliceCompact=function(on){ if(on)document.documentElement.dataset.compact='1';
   else delete document.documentElement.dataset.compact; fit(); };
 // ?compact in the URL does the same for any host
@@ -2147,7 +2285,11 @@ setInterval(async()=>{
    LAN-facing server completely decoupled from the page — nothing to probe. */
 /* Privacy mode: guests see an impressive mirror, not Simon's life. Private
    cards refuse to open and their reel entries dim; toggled from the phone. */
-let privacyOn=false;
+// var, not let: tlDraw() runs at load ABOVE this line, and when a private item
+// is in the 24h window it reads privacyOn — a let here is a TDZ crash that
+// kills boot. var hoists as undefined, which reads as privacy-off. Data-
+// dependent, so it bit a fresh clone before it ever bit the wall.
+var privacyOn=false;
 const PRIVATE_CARDS=new Set(['mail','reminders','calendar','flights','signals',
   'appstore','queues','onthisday','acquisition','auction','builds']);
 function setPrivacy(on){
@@ -2249,5 +2391,10 @@ addEventListener('keydown',e=>{
             : dimMode==='boost' ? 'night' : 'auto';
     applyDim();
   }});
-addEventListener('click',runTurn);
+// Wall/desktop only: a mouse click steps the canned demo. On a phone host every
+// tap is the talk button — running the demo there answered questions nobody asked.
+addEventListener('click',()=>{
+  if(window.ReactNativeWebView||document.documentElement.dataset.mobile!=null)return;
+  runTurn();
+});
 </script>

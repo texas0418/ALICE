@@ -1,5 +1,16 @@
 # A.L.I.C.E. — Attentive Local Intelligence & Concierge Engine
 
+![The A.L.I.C.E. HUD, idle](docs/hud.png)
+
+*Asking her about the weather — the card flies out of the rolodex, her answer types as she speaks:*
+
+![A focus card and a spoken answer](docs/focus-card.png)
+
+*The same file also renders a phone layout (companion app in progress):*
+
+<img src="docs/phone.png" width="320" alt="Phone layout">
+
+
 A voice-driven HUD for the wall — a smart mirror behind two-way glass, or an
 interactive display on a plain monitor; same interface either way. Iron Man idiom:
 pure-black ground, glowing line-work, a rolodex of live cards, a timeline of your next 24 hours, real aircraft on
