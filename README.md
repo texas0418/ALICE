@@ -35,8 +35,35 @@ either openWakeWord's training notebook or a Picovoice Porcupine custom keyword.
 Paths, repo name and launchd labels keep "jarvis" — renaming those buys nothing.
 
 
-Look-and-feel prototype. No audio, no network, no APIs. Everything on screen is
-either real (clock, date) or a scripted stand-in for something Phase 1 will make real.
+## Status
+
+**Not a prototype any more.** The voice loop runs end to end: wake word, speech
+recognition on the machine itself, an AI brain that answers from the mirror's own
+data, and a spoken reply. Eighteen focus cards run on live feeds — weather, air
+quality, calendar, reminders, mail, traffic with a routed map, flights with live
+status, aircraft overhead, precipitation radar, ISS passes and launches, news,
+markets, CI, App Store. A timeline rail shows the next 24 hours. Data refreshes on
+a five-minute daemon; the whole thing survives a reboot as a launchd appliance.
+
+On top of that sits a **ship's-computer layer** — ask for a spoken status report
+across every project you have running, search a library of your own written
+decisions by voice, dictate a personal log stamped with a stardate and play it
+back in your own voice, or turn the wall into a window on the live solar system.
+See [BRIDGE-MODE.md](BRIDGE-MODE.md) for that program and
+[CAPABILITIES.md](CAPABILITIES.md) for everything she can be asked.
+
+Built but waiting on the physical build: **voiceprint authorization** (code runs;
+enrollment happens once the mirror is on a wall), the **camera watcher** (pipeline
+complete, no cameras bought yet), and a **presence sensor** for wake-on-approach.
+A **phone companion app** is in progress — it renders this same `index.html`, so
+the HUD you see here is the HUD on the phone.
+
+## What's real vs. simulated
+  REAL        every feed above, the voice loop, the brain, the route map, the
+              clock/date, the render pipeline and state machine
+  SIMULATED   the four telemetry meters (processor / memory / mic gain / network
+              are decorative), and the SPACE-key demo turn, which replays a
+              scripted question so you can see the choreography without talking
 
 ## Run it
 Open `index.html` in Chrome. For the real effect:
@@ -47,17 +74,13 @@ Open `index.html` in Chrome. For the real effect:
   SPACE or click .... run one fake voice turn (wake -> listen -> think -> respond)
   C ................. toggle cyan (ambient JARVIS) / red (helmet targeting)
 
-## What's real vs. faked
-  REAL   clock, date, the whole render/animation pipeline, state machine
-  FAKED  the spoken question, the answer text, weather, telemetry meters,
-         the response-latency figure
-
 ## Design notes
   - Pure black background is mandatory: a two-way mirror only shows emitted light,
     so any grey fill reads as a glowing rectangle. All structure is drawn as lines.
-  - The radial spoke burst is the voice. It idles low and blooms on LISTENING.
-    In Phase 1 it gets driven by real mic amplitude, then by TTS output amplitude.
-  - Layout is landscape. Portrait needs a separate pass.
+  - The radial spoke burst is the voice. It idles low, blooms on LISTENING, and
+    is driven by real microphone amplitude when the voice service is running.
+  - Landscape and portrait both have real layouts; the phone app uses the portrait
+    one, with the ring on the left and an answer column on the right in landscape.
 
 ## Focus mode
 A query can summon a corner panel to the centre. The inner rings and core readout
@@ -75,8 +98,7 @@ Answers are authored with `[phrase|target]` markers:
 When the phrase finishes, the matching element in the focus card pulses (brightness
 surge + slight scale, ~1s) and then holds at raised brightness until the card leaves.
 The phrase in the spoken line lights up at the same moment, so the eye connects the
-two. In Phase 0 the cue fires off typing position. In Phase 1 it fires off real TTS
-alignment timestamps - same markers, different clock.
+two. The cue fires off typing position, which stays in step with the spoken line.
 
 ### Surging targets
 A target can be declared as `{sel:'...', surge:true}` instead of a bare selector.
@@ -117,8 +139,8 @@ otherwise leak it into a log.
 so "vs usual" means what it says. Congestion phrasing is derived from the real per-segment
 annotation — never invent a highway name, since step-level data isn't being requested.
 
-3 requests per refresh against a 100k/month free tier. Currently baked at fetch time;
-Phase 1 moves it to on-demand when asked.
+3 requests per refresh against a 100k/month free tier. The wall refreshes a fixed set
+of destinations; the phone app resolves any destination you name out loud, on demand.
 
 ## Reminders (local, no network)
     ~/.venvs/jarvis/bin/python tools/reminders.py [--quiet]
